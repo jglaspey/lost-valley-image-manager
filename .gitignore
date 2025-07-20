@@ -63,3 +63,6 @@ htmlcov/
 
 # Documentation
 docs/_build/
+
+# External repositories
+context7/
