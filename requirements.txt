@@ -2,6 +2,7 @@ google-api-python-client==2.134.0
 google-auth==2.30.0
 google-auth-httplib2==0.2.0
 Pillow==10.4.0
+pillow-heif==0.20.0
 click==8.1.7
 tqdm==4.66.4
 python-dotenv==1.0.1

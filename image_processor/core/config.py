@@ -133,10 +133,10 @@ class Config:
             )
         )
 
-    def validate(self) -> None:
+    def validate(self, check_credentials: bool = True) -> None:
         """Validate configuration values."""
         # Validate Google Drive credentials
-        if not Path(self.google_drive.credentials_path).exists():
+        if check_credentials and not Path(self.google_drive.credentials_path).exists():
             raise ConfigurationError(
                 f"Google Drive credentials file not found: {self.google_drive.credentials_path}"
             )

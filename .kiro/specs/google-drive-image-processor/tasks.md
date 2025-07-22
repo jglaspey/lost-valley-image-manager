@@ -8,23 +8,23 @@
   - [x] Updated requirements.txt with stable, locked versions from Context7
   - _Requirements: 6.1, 6.3_
 
-- [ ] 2. Implement database foundation
-  - [ ] 2.1 Create database schema and connection management
+- [x] 2. Implement database foundation
+  - [x] 2.1 Create database schema and connection management
     - Write SQLite database schema creation scripts for files, metadata, and tags tables
     - Implement database connection pooling and transaction management
     - Create database migration system for schema updates
     - Write unit tests for database operations
     - _Requirements: 7.1, 7.2, 7.5_
 
-  - [ ] 2.2 Implement data access layer with CRUD operations
+  - [x] 2.2 Implement data access layer with CRUD operations
     - Create repository classes for files, metadata, and tags tables
     - Implement methods for inserting, updating, and querying records
     - Add database indexing for optimal query performance
     - Write integration tests for data access operations
     - _Requirements: 7.3, 7.4_
 
-- [ ] 3. Build Google Drive integration
-  - [ ] 3.1 Implement Google Drive API authentication and basic operations
+- [x] 3. Build Google Drive integration
+  - [x] 3.1 Implement Google Drive API authentication and basic operations
     - Set up Google Drive API credentials and authentication flow
     - Create service class for Google Drive API interactions
     - Implement basic file listing and metadata retrieval
@@ -32,13 +32,21 @@
     - Write unit tests with mocked API responses
     - _Requirements: 1.1, 1.4_
 
-  - [ ] 3.2 Create file discovery service with recursive traversal
+  - [x] 3.2 Create file discovery service with recursive traversal
     - Implement recursive folder traversal logic
-    - Add media file identification based on MIME types and extensions
+    - Add media file identification based on MIME types and extensions (including HEIC support)
     - Create file counting and progress tracking functionality
     - Implement pagination handling for large folders
+    - Add shared drive support for accessing organizational Google Drives
     - Write integration tests with test Google Drive folder
     - _Requirements: 1.1, 1.2, 1.3_
+
+  - [x] 3.3 Add CLI interface for testing and discovery
+    - Create command-line interface using Click framework
+    - Add commands for authentication testing, file counting, and discovery
+    - Implement progress tracking and status reporting
+    - Add database initialization and statistics commands
+    - _New functionality beyond original requirements_
 
 - [ ] 4. Develop processing queue and state management
   - [ ] 4.1 Implement processing queue with status tracking

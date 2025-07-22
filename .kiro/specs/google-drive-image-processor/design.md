@@ -40,17 +40,20 @@ graph TD
 
 ### File Discovery Service
 
-**Purpose**: Recursively traverse Google Drive and identify all media files
+**Purpose**: Recursively traverse Google Drive and identify all media files, including support for shared drives
 
 **Key Methods**:
-- `discover_files()`: Main entry point for file discovery
-- `traverse_folder(folder_id)`: Recursive folder traversal
-- `is_media_file(file)`: Determines if file is image/video
-- `get_file_metadata(file)`: Extracts basic file information
+- `discover_media_files()`: Main entry point for file discovery
+- `_traverse_folder(folder_id, path, shared_drive_id)`: Recursive folder traversal with shared drive support
+- `_is_media_file(file)`: Determines if file is image/video (includes HEIC/HEIF support)
+- `_get_file_metadata(file)`: Extracts basic file information
+- `_get_shared_drive_id(folder_id)`: Detects if folder is in a shared drive
 
 **Dependencies**: Google Drive API v3
 
-**Output**: List of `MediaFile` objects with basic metadata
+**Output**: Generator of `MediaFile` objects with basic metadata
+
+**Supported Formats**: JPEG, PNG, GIF, BMP, TIFF, WebP, HEIC, HEIF, MP4, QuickTime, AVI, WMV, WebM
 
 ### Processing Queue
 

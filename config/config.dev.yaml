@@ -1,0 +1,47 @@
+google_drive:
+  credentials_path: "credentials.json"  # You'll need to add your own credentials
+  root_folder_id: null
+  batch_size: 100
+  rate_limit_delay: 1.0
+
+vision_model:
+  model_type: "gemma-3-4b-it-qat"
+  api_endpoint: "http://127.0.0.1:1234"
+  temperature: 0.4
+  max_tokens: 500
+  max_retries: 3
+  timeout_seconds: 30
+  prompt_template: |
+    Analyze this image and provide a JSON response with the following information:
+    {
+      "primary_subject": "Brief description of the main focus (1-2 sentences)",
+      "visual_quality": [1-5 scale: 1=blurry/poor, 3=decent, 5=excellent],
+      "has_people": true/false,
+      "people_count": "none/1-2/3-5/6-10/10+",
+      "is_indoor": true/false,
+      "activity_tags": ["select all that apply: gardening, harvesting, education, construction, maintenance, cooking, celebration, children, animals, landscape, tools, produce"],
+      "season": "spring/summer/fall/winter/unclear",
+      "social_media_score": [1-5 scale],
+      "social_media_reason": "One sentence explaining score",
+      "marketing_score": [1-5 scale],
+      "marketing_use": "best use case for this image"
+    }
+    Be concise and factual. Focus on what is clearly visible.
+
+database:
+  type: "sqlite"
+  path: "data/image_metadata.db"
+  backup_enabled: true
+  backup_interval_hours: 24
+
+processing:
+  thumbnail_size: [200, 200]
+  supported_formats: ["jpg", "jpeg", "png", "gif", "bmp", "tiff"]
+  max_file_size_mb: 50
+  concurrent_workers: 4
+
+logging:
+  level: "INFO"
+  file_path: "logs/processing.log"
+  max_file_size_mb: 10
+  backup_count: 5

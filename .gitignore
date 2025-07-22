@@ -52,6 +52,7 @@ thumbnails/
 logs/
 backups/
 credentials.json
+token.json
 .env
 
 # Testing
