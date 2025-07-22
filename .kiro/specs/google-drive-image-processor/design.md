@@ -110,6 +110,7 @@ CREATE TABLE metadata (
     visual_quality INTEGER CHECK (visual_quality BETWEEN 1 AND 5),
     has_people BOOLEAN,
     people_count TEXT CHECK (people_count IN ('none', '1-2', '3-5', '6-10', '10+')),
+    is_indoor BOOLEAN,
     social_media_score INTEGER CHECK (social_media_score BETWEEN 1 AND 5),
     social_media_reason TEXT,
     marketing_score INTEGER CHECK (marketing_score BETWEEN 1 AND 5),

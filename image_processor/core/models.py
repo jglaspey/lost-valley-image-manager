@@ -37,6 +37,7 @@ class ExtractedMetadata:
     visual_quality: int  # 1-5 scale
     has_people: bool
     people_count: str  # 'none', '1-2', '3-5', '6-10', '10+'
+    is_indoor: bool  # True for indoor, False for outdoor
     social_media_score: int  # 1-5 scale
     social_media_reason: str
     marketing_score: int  # 1-5 scale

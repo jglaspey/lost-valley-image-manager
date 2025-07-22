@@ -27,12 +27,20 @@
    - Has people: yes/no
    - Count: none/1-2/3-5/6-10/10+
 
-4. **Activity Tags** (multiple selection)
+4. **Indoor/Outdoor** (boolean)
+   - True for indoor, False for outdoor
+   - Based on lighting, background, architectural elements
+
+5. **Activity Tags** (multiple selection)
    - gardening, harvesting, education, construction
    - maintenance, cooking, celebration, children
    - animals, landscape, tools, produce
 
-5. **Social Media Score** (1-5 scale + reason)
+6. **Season** (if discernible)
+   - spring/summer/fall/winter/unclear
+   - Based on foliage, lighting, clothing, activities
+
+7. **Social Media Score** (1-5 scale + reason)
    - 1: Not suitable → 5: Highly shareable
    - Include one sentence explaining the rating
 
@@ -58,7 +66,9 @@
   "visual_quality": "[1-5 scale: 1=blurry/poor, 3=decent, 5=excellent]",
   "has_people": "true/false",
   "people_count": "none/1-2/3-5/6-10/10+",
+  "is_indoor": "true/false",
   "activity_tags": ["select all that apply: gardening, harvesting, education, construction, maintenance, cooking, celebration, children, animals, landscape, tools, produce"],
+  "season": "spring/summer/fall/winter/unclear",
   "social_media_score": "[1-5 scale]",
   "social_media_reason": "One sentence explaining score",
   "marketing_score": "[1-5 scale]",
