@@ -1,0 +1,58 @@
+spec:
+  name: lost-valley-image-manager
+  region: sfo3
+  
+  # Environment variables shared across components
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: DATABASE_PATH
+    value: /workspace/data/image_metadata.db
+    
+  # Static site for React frontend
+  static_sites:
+  - name: frontend
+    source_dir: /
+    build_command: cd client && npm ci && npm run build
+    output_dir: client/build
+    routes:
+    - path: /
+    environment_slug: node-js
+    
+  # Node.js backend service
+  services:
+  - name: api
+    source_dir: /
+    build_command: npm ci --only=production
+    run_command: node server/index.js
+    http_port: 5000
+    instance_count: 1
+    instance_size_slug: basic-xs
+    routes:
+    - path: /api
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 10
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+    - key: PORT
+      value: "5000"
+    - key: FRONTEND_URL
+      value: ${APP_URL}
+      
+  # Persistent volume for SQLite database
+  databases:
+  - name: image-data
+    engine: SQLITE
+    production: true
+    
+  # Optional: Jobs for maintenance tasks
+  jobs:
+  - name: db-backup
+    kind: PRE_DEPLOY
+    source_dir: /
+    run_command: cp /workspace/data/image_metadata.db /workspace/data/backup/image_metadata_$(date +%Y%m%d_%H%M%S).db
+    environment_slug: node-js

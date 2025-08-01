@@ -1,0 +1,53 @@
+{
+  "name": "lost-valley-image-manager",
+  "version": "1.0.0",
+  "description": "Full-stack web application for managing Google Drive images with AI metadata",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "PORT=5005 nodemon server/index.js",
+    "client": "cd client && PORT=3005 npm start",
+    "build": "cd client && npm run build",
+    "start": "node server/index.js",
+    "install:all": "npm install && cd client && npm install",
+    "docker:build": "docker build -t lost-valley-image-manager .",
+    "docker:run": "docker run -p 3000:3000 -p 5000:5000 lost-valley-image-manager",
+    "deploy:do": "doctl apps create --spec .do/app.yaml"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "compression": "^1.7.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.4.1",
+    "googleapis": "^154.1.0",
+    "helmet": "^8.0.0",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.1",
+    "path": "^0.12.7",
+    "sharp": "^0.34.3",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/lost-valley-image-manager.git"
+  },
+  "keywords": [
+    "image-management",
+    "ai-metadata",
+    "permaculture",
+    "google-drive",
+    "react",
+    "nodejs"
+  ],
+  "author": "Lost Valley Community",
+  "license": "MIT"
+}
