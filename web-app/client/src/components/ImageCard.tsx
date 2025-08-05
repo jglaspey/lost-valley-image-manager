@@ -1,4 +1,4 @@
-import { Calendar, Users, MapPin, Star, Camera, Tag } from 'lucide-react';
+import { Calendar, Users, MapPin, Star, Camera, Tag, Download } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -14,6 +14,19 @@ export function ImageCard({ image, onClick }: ImageCardProps) {
   const formatFileSize = (bytes: number) => {
     const mb = bytes / (1024 * 1024);
     return `${mb.toFixed(1)} MB`;
+  };
+
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card onClick from firing
+    const downloadUrl = `/api/download/${image.drive_file_id}`;
+    
+    // Create a hidden link and trigger download
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = image.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const formatDate = (dateString: string) => {
@@ -127,6 +140,15 @@ export function ImageCard({ image, onClick }: ImageCardProps) {
               MK: {image.marketing_score}/5
             </span>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDownload}
+            className="h-6 px-2 text-xs hover:bg-gray-100"
+            title="Download original file"
+          >
+            <Download className="w-3 h-3" />
+          </Button>
         </div>
       </CardContent>
     </Card>

@@ -11,9 +11,14 @@ const imageRoutes = require('./routes/images');
 const searchRoutes = require('./routes/search');
 const statsRoutes = require('./routes/stats');
 const thumbnailRoutes = require('./routes/thumbnails');
+const downloadRoutes = require('./routes/download');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Configure trust proxy for rate limiting
+// In development, we might be behind a proxy (like webpack-dev-server)
+app.set('trust proxy', true);
 
 // Security middleware
 app.use(helmet({
@@ -42,7 +47,7 @@ app.use(morgan('combined'));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL 
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    : ['http://localhost:3000', 'http://localhost:3005', 'http://127.0.0.1:3000', 'http://127.0.0.1:3005'],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -53,6 +58,7 @@ app.use('/api/images', imageRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/thumbnails', thumbnailRoutes);
+app.use('/api/download', downloadRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
