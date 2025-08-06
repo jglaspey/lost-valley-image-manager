@@ -118,6 +118,11 @@ export function ImageDetailModal({
                 <div className="text-xs text-muted-foreground">
                   {formatFileSize(image.file_size)} • {formatDate(image.created_date)}
                 </div>
+                {(image.width && image.height) && (
+                  <div className="text-xs text-muted-foreground">
+                    {image.width} × {image.height} pixels
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}

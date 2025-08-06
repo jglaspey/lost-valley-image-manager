@@ -24,6 +24,8 @@ class MediaFile:
     mime_type: str
     created_date: datetime
     modified_date: datetime
+    width: Optional[int] = None
+    height: Optional[int] = None
     processing_status: ProcessingStatus = ProcessingStatus.PENDING
     processed_at: Optional[datetime] = None
     thumbnail_path: Optional[str] = None

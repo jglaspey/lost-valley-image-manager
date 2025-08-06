@@ -4,6 +4,8 @@ export interface ProcessedImage {
   filename: string;
   file_path: string;
   file_size: number;
+  width?: number;
+  height?: number;
   mime_type: string;
   created_date: string;
   modified_date: string;
@@ -69,6 +71,11 @@ export interface SearchFilters {
   timeOfDay: string[];
   socialMediaScore: [number, number];
   marketingScore: [number, number];
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  aspectRatio?: 'any' | 'landscape' | 'portrait' | 'square';
 }
 
 export interface PaginationInfo {

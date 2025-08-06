@@ -25,9 +25,9 @@ class FileRepository:
         """Create a new file record."""
         sql = """
             INSERT INTO files (
-                drive_file_id, filename, file_path, file_size, mime_type,
-                created_date, modified_date, processing_status, thumbnail_path
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                drive_file_id, filename, file_path, file_size, width, height,
+                mime_type, created_date, modified_date, processing_status, thumbnail_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         cursor = self.db.execute(sql, (
@@ -35,6 +35,8 @@ class FileRepository:
             media_file.filename,
             media_file.file_path,
             media_file.file_size,
+            media_file.width,
+            media_file.height,
             media_file.mime_type,
             media_file.created_date,
             media_file.modified_date,
@@ -104,6 +106,11 @@ class FileRepository:
         sql = "UPDATE files SET thumbnail_path = ? WHERE id = ?"
         self.db.execute(sql, (thumbnail_path, file_id))
     
+    def update_dimensions(self, file_id: int, width: int, height: int) -> None:
+        """Update file dimensions."""
+        sql = "UPDATE files SET width = ?, height = ? WHERE id = ?"
+        self.db.execute(sql, (width, height, file_id))
+    
     def exists(self, drive_file_id: str) -> bool:
         """Check if a file exists by Google Drive ID."""
         sql = "SELECT 1 FROM files WHERE drive_file_id = ?"
@@ -151,6 +158,8 @@ class FileRepository:
             filename=row['filename'],
             file_path=row['file_path'],
             file_size=row['file_size'],
+            width=row.get('width'),
+            height=row.get('height'),
             mime_type=row['mime_type'],
             created_date=row['created_date'],
             modified_date=row['modified_date'],

@@ -108,6 +108,26 @@ router.get('/:fileId', async (req, res) => {
     const metadata = await sharpInstance.metadata();
     console.log(`Processing ${fileId}: ${metadata.format} ${metadata.width}x${metadata.height}`);
     
+    // Update database with image dimensions if we have them and they're not already set
+    if (metadata.width && metadata.height) {
+      try {
+        const db = require('../database/connection');
+        await db.connect();
+        
+        // Check if dimensions are already set
+        const existing = await db.get('SELECT width, height FROM files WHERE drive_file_id = ?', [fileId]);
+        
+        if (existing && (!existing.width || !existing.height)) {
+          await db.run('UPDATE files SET width = ?, height = ? WHERE drive_file_id = ?', 
+            [metadata.width, metadata.height, fileId]);
+          console.log(`Updated dimensions for ${fileId}: ${metadata.width}x${metadata.height}`);
+        }
+      } catch (dbError) {
+        console.error('Failed to update dimensions in database:', dbError.message);
+        // Continue processing even if DB update fails
+      }
+    }
+    
     await sharpInstance
       .resize(width, height, { 
         fit: 'inside',

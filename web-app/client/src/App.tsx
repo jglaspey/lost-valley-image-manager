@@ -32,7 +32,12 @@ const initialFilters: SearchFilters = {
   season: [],
   timeOfDay: [],
   socialMediaScore: [1, 5],
-  marketingScore: [1, 5]
+  marketingScore: [1, 5],
+  minWidth: undefined,
+  maxWidth: undefined,
+  minHeight: undefined,
+  maxHeight: undefined,
+  aspectRatio: 'any'
 };
 
 function ImageApp() {
@@ -53,7 +58,12 @@ function ImageApp() {
       filters.season.length > 0 ||
       filters.timeOfDay.length > 0 ||
       filters.socialMediaScore[0] > 1 || filters.socialMediaScore[1] < 5 ||
-      filters.marketingScore[0] > 1 || filters.marketingScore[1] < 5;
+      filters.marketingScore[0] > 1 || filters.marketingScore[1] < 5 ||
+      filters.minWidth !== undefined ||
+      filters.maxWidth !== undefined ||
+      filters.minHeight !== undefined ||
+      filters.maxHeight !== undefined ||
+      filters.aspectRatio !== 'any';
   }, [filters]);
 
   // Query for images

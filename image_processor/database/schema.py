@@ -1,6 +1,6 @@
 """Database schema definitions for Google Drive Image Processor."""
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS files (
     filename TEXT NOT NULL,
     file_path TEXT NOT NULL,
     file_size INTEGER,
+    width INTEGER,
+    height INTEGER,
     mime_type TEXT,
     created_date TIMESTAMP,
     modified_date TIMESTAMP,
@@ -151,6 +153,23 @@ def migrate_schema(connection):
             
             connection.commit()
             print("Added notes field to metadata table")
+        
+        # Migration from version 2 to 3: Add width and height fields
+        if current_version < 3:
+            cursor = connection.cursor()
+            
+            # Add width and height columns to files table
+            cursor.execute("ALTER TABLE files ADD COLUMN width INTEGER")
+            cursor.execute("ALTER TABLE files ADD COLUMN height INTEGER")
+            
+            # Update schema version
+            cursor.execute(
+                "INSERT INTO schema_version (version) VALUES (?)",
+                (3,)
+            )
+            
+            connection.commit()
+            print("Added width and height fields to files table")
         
         print(f"Schema migration complete to version {SCHEMA_VERSION}")
     else:

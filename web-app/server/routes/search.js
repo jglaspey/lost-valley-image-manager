@@ -19,6 +19,11 @@ router.post('/', async (req, res) => {
       timeOfDay = [],
       socialMediaScore = [1, 5],
       marketingScore = [1, 5],
+      minWidth,
+      maxWidth,
+      minHeight,
+      maxHeight,
+      aspectRatio = 'any',
       page = 1,
       limit = 20,
       sort = 'created_date',
@@ -34,6 +39,8 @@ router.post('/', async (req, res) => {
         f.filename,
         f.file_path,
         f.file_size,
+        f.width,
+        f.height,
         f.mime_type,
         f.created_date,
         f.modified_date,
@@ -127,6 +134,38 @@ router.post('/', async (req, res) => {
       params.push(marketingScore[0], marketingScore[1]);
     }
 
+    // Dimension filters
+    if (minWidth !== undefined && minWidth !== null) {
+      searchQuery += ` AND f.width >= ?`;
+      params.push(minWidth);
+    }
+
+    if (maxWidth !== undefined && maxWidth !== null) {
+      searchQuery += ` AND f.width <= ?`;
+      params.push(maxWidth);
+    }
+
+    if (minHeight !== undefined && minHeight !== null) {
+      searchQuery += ` AND f.height >= ?`;
+      params.push(minHeight);
+    }
+
+    if (maxHeight !== undefined && maxHeight !== null) {
+      searchQuery += ` AND f.height <= ?`;
+      params.push(maxHeight);
+    }
+
+    // Aspect ratio filter
+    if (aspectRatio && aspectRatio !== 'any') {
+      if (aspectRatio === 'landscape') {
+        searchQuery += ` AND f.width > f.height`;
+      } else if (aspectRatio === 'portrait') {
+        searchQuery += ` AND f.height > f.width`;
+      } else if (aspectRatio === 'square') {
+        searchQuery += ` AND abs(f.width - f.height) < (CASE WHEN f.width > f.height THEN f.width ELSE f.height END) * 0.1`;
+      }
+    }
+
     // Activity tags filter
     if (activityTags && activityTags.length > 0) {
       const placeholders = activityTags.map(() => '?').join(',');
@@ -211,7 +250,12 @@ router.post('/', async (req, res) => {
         season,
         timeOfDay,
         socialMediaScore,
-        marketingScore
+        marketingScore,
+        minWidth,
+        maxWidth,
+        minHeight,
+        maxHeight,
+        aspectRatio
       }
     });
 
