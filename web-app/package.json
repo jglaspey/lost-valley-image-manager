@@ -11,7 +11,7 @@
     "start": "node server/index.js",
     "install:all": "npm install && cd client && npm install",
     "docker:build": "docker build -t lost-valley-image-manager .",
-    "docker:run": "docker run -p 3000:3000 -p 5000:5000 lost-valley-image-manager",
+    "docker:run": "docker run -p 3005:3005 -p 5005:5005 lost-valley-image-manager",
     "deploy:do": "doctl apps create --spec .do/app.yaml"
   },
   "dependencies": {

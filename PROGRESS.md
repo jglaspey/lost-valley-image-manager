@@ -86,6 +86,12 @@ Automated batch processing system for Google Drive media files using AI vision m
 - [x] **Loading Skeletons**: Prevent jarring layout jumps during image load
 - [x] **Hover-Only Score Display**: Clean UI with compact scores shown only on hover
 - [x] **Project Organization**: Databases moved to `/databases/`, test files archived in `/archive/`
+- [x] **Port Standardization**: Frontend on 3005, Backend on 5005 with proper CORS configuration
+
+### Current Issues to Resolve
+- [ ] **Server Stability**: Pagination crashes server when accessing page 2 (likely in activity_tags query)
+- [ ] **Database Connection**: Fixed path issues but server crashes on certain queries
+- [ ] **Error Handling**: Need better error handling in images route pagination logic
 
 ## Testing Results
 - Successfully processed 150+ images with both Gemma and Claude models

@@ -4,7 +4,7 @@ const path = require('path');
 class DatabaseConnection {
   constructor() {
     this.db = null;
-    this.dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../../databases/claude_2pass.db');
+    this.dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../../databases/image_metadata.db');
   }
 
   async setDatabase(dbName) {

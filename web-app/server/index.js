@@ -15,7 +15,7 @@ const downloadRoutes = require('./routes/download');
 const databaseRoutes = require('./routes/databases');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5005;
 
 // Configure trust proxy for rate limiting
 // In development, we might be behind a proxy (like webpack-dev-server)
@@ -48,7 +48,7 @@ app.use(morgan('combined'));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL 
-    : ['http://localhost:3000', 'http://localhost:3005', 'http://127.0.0.1:3000', 'http://127.0.0.1:3005'],
+    : ['http://localhost:3005', 'http://127.0.0.1:3005'],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -112,7 +112,7 @@ process.on('SIGINT', () => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Database: ${process.env.DATABASE_PATH || '../image_metadata.db'}`);
+  console.log(`Database: ${process.env.DATABASE_PATH || '../databases/image_metadata.db'}`);
 });
 
 module.exports = app;
