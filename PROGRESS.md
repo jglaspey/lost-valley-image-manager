@@ -100,18 +100,20 @@ Automated batch processing system for Google Drive media files using AI vision m
    - [x] Images now display in natural proportions without cropping
    - [x] Maintains responsive design while preserving true aspect ratios
 
+2. **Image Dimensions & Search** 📏
+   - [x] Added width/height fields to database schema (v3 migration)
+   - [x] Extract dimensions during thumbnail processing pipeline
+   - [x] Display dimensions in image detail modal
+   - [x] Backend search filters for min/max width/height
+   - [x] Aspect ratio filters (landscape/portrait/square)
+   - [x] Automatic dimension extraction from image metadata
+
 ### Planned Improvements (In Order)
 1. **Image Rotation Feature** 🔄
    - UI controls for rotating images (90° increments)
    - Backend storage of rotation state per image
    - Display rotated images correctly in grid and detail views
    - Consider: Database field vs image transformation approach
-
-2. **Image Dimensions & Search** 📏
-   - Add width/height fields to database schema
-   - Extract dimensions during processing pipeline
-   - Make dimensions searchable in UI filters
-   - Display dimensions in image metadata
 
 ### Implementation Plan
 - Each feature will be implemented and committed separately
