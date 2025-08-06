@@ -4,6 +4,7 @@ import { Toaster } from 'sonner';
 import { SearchHeader } from './components/SearchHeader';
 import { FilterPanel } from './components/FilterPanel';
 import { ImageCard } from './components/ImageCard';
+import { MasonryGallery } from './components/CSSMasonryGallery';
 import { ImageDetailModal } from './components/ImageDetailModal';
 import { SearchFilters, ProcessedImage } from './types/image';
 import { imageApi } from './api/client';
@@ -245,15 +246,10 @@ function ImageApp() {
               </p>
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
-              {filteredImages.map((image) => (
-                <ImageCard
-                  key={image.id}
-                  image={image}
-                  onClick={() => setSelectedImage(image)}
-                />
-              ))}
-            </div>
+            <MasonryGallery 
+              images={filteredImages} 
+              onImageClick={setSelectedImage}
+            />
           ) : (
             <div className="space-y-4">
               {filteredImages.map((image) => (
