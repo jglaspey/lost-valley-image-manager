@@ -1,9 +1,9 @@
-# Google Drive Image Processor - Progress Summary
+# Lost Valley Image Manager - Progress Summary
 
 ## Project Overview
 Automated batch processing system for Google Drive media files using AI vision models, specifically designed for permaculture communities. System processes images from Google Drive shared folders, extracts metadata using AI, and provides a web interface for browsing and comparing results.
 
-## Current Status: Full Pipeline & UI Complete ✅
+## Current Status: Production-Ready with Pinterest-Style Gallery ✅
 
 ### Phase 1: Foundation Complete ✅
 - [x] **Project Structure**: Complete Python package structure with proper organization
@@ -73,17 +73,19 @@ Automated batch processing system for Google Drive media files using AI vision m
 - **Database Switching**: Runtime database selection for A/B testing
 - **Responsive Design**: Optimized for viewing large image collections
 
-### Current Databases
+### Current Databases (Organized in `/databases/` folder)
+- `claude_2pass.db`: Primary Claude 3.5 Haiku 2-pass analysis results
+- `cloudtest.db`: Additional test database  
 - `image_metadata.db`: Original local Gemma processing results
-- `claude_2pass.db`: Claude 3.5 Haiku 2-pass analysis results  
-- `cloudtest.db`: Additional test database
+- `data_image_metadata.db`: Development database backup
 
-### Recent UI Improvements (Latest Session)
-- [x] **Compact Image Cards**: 150px wide thumbnails with full image coverage
-- [x] **Essential Metadata Only**: Shows only scores (VQ, SM, MK), filename, and filepath
-- [x] **Pagination**: 50 images per page with intuitive navigation
-- [x] **Large Detail Modal**: Redesigned with large image + compact sidebar layout
-- [x] **Clean Code**: Removed all leftover old layout code from components
+### Recent Major Improvements
+- [x] **Pinterest-Style Masonry Gallery**: CSS-based multi-column layout with golden ratio sizing
+- [x] **Golden Ratio Sizing**: Images sized based on AI scores (φ = 1.618) - higher quality = larger size
+- [x] **Score-Based Dynamic Sizing**: 200px base, 324px (φ), 524px (φ²) tiers + 10% random variation
+- [x] **Loading Skeletons**: Prevent jarring layout jumps during image load
+- [x] **Hover-Only Score Display**: Clean UI with compact scores shown only on hover
+- [x] **Project Organization**: Databases moved to `/databases/`, test files archived in `/archive/`
 
 ## Testing Results
 - Successfully processed 150+ images with both Gemma and Claude models
@@ -91,7 +93,7 @@ Automated batch processing system for Google Drive media files using AI vision m
 - UI efficiently displays large image collections with fast navigation
 - Database switching works seamlessly for model comparison
 
-## Next Phase: Enhanced Image Management ⏳
+## Project Organization & Structure ✅
 
 ### Completed Improvements ✅
 1. **Aspect Ratio Preservation** 📐
@@ -108,17 +110,44 @@ Automated batch processing system for Google Drive media files using AI vision m
    - [x] Aspect ratio filters (landscape/portrait/square)
    - [x] Automatic dimension extraction from image metadata
 
-### Planned Improvements (In Order)
-1. **Image Rotation Feature** 🔄
-   - UI controls for rotating images (90° increments)
-   - Backend storage of rotation state per image
-   - Display rotated images correctly in grid and detail views
-   - Consider: Database field vs image transformation approach
+3. **Pinterest-Style Gallery** 🎨
+   - [x] CSS multi-column masonry layout with golden ratio sizing
+   - [x] Score-based dynamic image sizing (φ = 1.618 mathematics)
+   - [x] Loading skeletons with proper aspect ratio handling
+   - [x] Hover-only metadata display for clean interface
 
-### Implementation Plan
-- Each feature will be implemented and committed separately
-- Update PROGRESS.md after each completion
-- Test thoroughly before moving to next feature
+4. **Project Organization** 📁
+   - [x] Created `/databases/` folder for all database files
+   - [x] Created `/archive/` folder for old components and test scripts
+   - [x] Updated configuration files to use new database paths
+   - [x] Cleaned up root directory structure
+
+### Current Project Structure
+```
+Lost Valley Image Manager/
+├── databases/                    # All database files organized here
+│   ├── claude_2pass.db          # Primary production database
+│   ├── cloudtest.db             # Test database
+│   ├── image_metadata.db        # Original Gemma results
+│   └── data_image_metadata.db   # Development backup
+├── archive/                      # Archived files and old components
+│   ├── context7/                # Separate project archived
+│   ├── front-end-research/      # Old UI research
+│   ├── google_drive_image_processor.egg-info/
+│   ├── MasonryGallery.tsx       # Old @egjs-based component
+│   ├── MasonryGallerySimple.tsx # Simplified old component
+│   └── [various test scripts]
+├── config/
+│   ├── config.yaml              # Updated database paths
+│   └── config.dev.yaml          # Updated database paths
+├── image_processor/             # Core Python package
+├── web-app/                     # React frontend & Node.js backend
+│   ├── client/src/components/
+│   │   └── CSSMasonryGallery.tsx # Current masonry implementation
+│   └── server/database/
+│       └── connection.js        # Updated database paths
+└── [documentation files]
+```
 
 ## File Structure Created
 ```
@@ -153,4 +182,4 @@ setup.py                 # Package configuration
 - Database implementation (Task 2)
 
 ---
-*Last Updated: $(date)*
+*Last Updated: August 6, 2025*

@@ -51,7 +51,7 @@ vision_model:
 
 database:
   type: "sqlite"
-  path: "image_metadata.db"
+  path: "databases/claude_2pass.db"
   backup_enabled: true
   backup_interval_hours: 24
 

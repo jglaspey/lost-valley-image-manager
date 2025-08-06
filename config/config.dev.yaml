@@ -30,7 +30,7 @@ vision_model:
 
 database:
   type: "sqlite"
-  path: "data/image_metadata.db"
+  path: "databases/data_image_metadata.db"
   backup_enabled: true
   backup_interval_hours: 24
 
