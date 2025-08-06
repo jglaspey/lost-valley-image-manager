@@ -32,16 +32,16 @@ export function ImageCard({ image, onClick }: ImageCardProps) {
     <div className="group hover:shadow-lg transition-all duration-200 cursor-pointer bg-white rounded-lg border overflow-hidden" onClick={onClick}>
       <div className="relative">
         <img
-          src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=300x300`}
+          src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=300x400`}
           alt={image.primary_subject}
-          className="w-full aspect-square object-contain bg-gray-50"
+          className="w-full h-32 object-contain bg-gray-50"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.style.display = 'none';
             target.nextElementSibling?.classList.remove('hidden');
           }}
         />
-        <div className="hidden w-full aspect-square bg-gray-200 flex items-center justify-center">
+        <div className="hidden w-full h-32 bg-gray-200 flex items-center justify-center">
           <div className="text-center text-gray-500 text-xs">
             <div>Image unavailable</div>
           </div>

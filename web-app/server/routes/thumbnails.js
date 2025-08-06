@@ -110,8 +110,8 @@ router.get('/:fileId', async (req, res) => {
     
     await sharpInstance
       .resize(width, height, { 
-        fit: 'cover',
-        position: 'center'
+        fit: 'inside',
+        withoutEnlargement: true
       })
       .jpeg({ 
         quality: 85,

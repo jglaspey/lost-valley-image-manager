@@ -95,7 +95,7 @@ export function ImageDetailModal({
             {/* Large Image */}
             <div className="flex-1 p-4 flex items-center justify-center">
               <img
-                src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=1200x1200`}
+                src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=1200x900`}
                 alt={image.primary_subject}
                 className="max-w-full max-h-full object-contain bg-muted/30 rounded-lg"
                 onError={(e) => {
