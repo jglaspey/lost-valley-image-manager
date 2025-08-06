@@ -13,20 +13,41 @@ vision_model:
   timeout_seconds: 30
   prompt_template: |
     Analyze this image and provide a JSON response with the following information:
-    {
+    {{
       "primary_subject": "Brief description of the main focus (1-2 sentences)",
-      "visual_quality": [1-5 scale: 1=blurry/poor, 3=decent, 5=excellent],
-      "has_people": true/false,
-      "people_count": "none/1-2/3-5/6-10/10+",
-      "is_indoor": true/false,
-      "activity_tags": ["select all that apply: gardening, harvesting, education, construction, maintenance, cooking, celebration, children, animals, landscape, tools, produce"],
-      "season": "spring/summer/fall/winter/unclear",
-      "social_media_score": [1-5 scale],
+      "visual_quality": 3,
+      "has_people": false,
+      "people_count": "none",
+      "is_indoor": false,
+      "activity_tags": ["landscape"],
+      "season": "unclear",
+      "mood_energy": "overall feeling or energy of the image",
+      "color_palette": "dominant colors and color mood",
+      "social_media_score": 3,
       "social_media_reason": "One sentence explaining score",
-      "marketing_score": [1-5 scale],
-      "marketing_use": "best use case for this image"
-    }
-    Be concise and factual. Focus on what is clearly visible.
+      "marketing_score": 3,
+      "marketing_use": "best use case for this image",
+      "notes": "Additional insights from filename and file path context"
+    }}
+    
+    File context to analyze:
+    - Filename: {filename}
+    - File path: {file_path}
+    
+    IMPORTANT INSTRUCTIONS:
+    - visual_quality: integer from 1 to 5 (1=blurry/poor, 3=decent, 5=excellent)
+    - has_people: boolean true or false
+    - people_count: must be one of: "none", "1-2", "3-5", "6-10", "10+"
+    - is_indoor: boolean true or false  
+    - activity_tags: array of strings, select all that apply from: gardening, harvesting, education, construction, maintenance, cooking, celebration, children, animals, landscape, tools, produce
+    - season: must be one of: "spring", "summer", "fall", "winter", "unclear"
+    - mood_energy: describe the overall feeling/energy (e.g., "peaceful and serene", "vibrant and energetic", "moody and dramatic")
+    - color_palette: describe dominant colors and overall color mood (e.g., "warm earth tones", "cool blues and greens", "vibrant sunset oranges")
+    - social_media_score: integer from 1 to 5 (BE CRITICAL: 1=poor/unusable, 2=below average, 3=fine/good, 4=really good/best in folder, 5=fantastic/exceptional only)
+    - marketing_score: integer from 1 to 5 (BE CRITICAL: 1=poor/unusable, 2=below average, 3=fine/good, 4=really good/best in folder, 5=fantastic/exceptional only)
+    - notes: extract insights about source, context, dates, or other metadata from the filename and folder structure
+    
+    Be concise and factual. Focus on what is clearly visible in the image and meaningful patterns in the file naming.
 
 database:
   type: "sqlite"
@@ -36,7 +57,7 @@ database:
 
 processing:
   thumbnail_size: [200, 200]
-  supported_formats: ["jpg", "jpeg", "png", "gif", "bmp", "tiff"]
+  supported_formats: ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "heic", "heif"]
   max_file_size_mb: 50
   concurrent_workers: 4
 

@@ -10,7 +10,7 @@ from datetime import datetime
 
 from ..core.config import DatabaseConfig
 from ..core.exceptions import DatabaseError
-from .schema import create_schema, get_schema_version, SCHEMA_VERSION
+from .schema import create_schema, get_schema_version, migrate_schema, SCHEMA_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class DatabaseConnection:
                     f"Initializing database schema (current: {current_version}, target: {SCHEMA_VERSION})"
                 )
                 create_schema(conn)
+                migrate_schema(conn)
                 logger.info("Database schema initialized successfully")
             else:
                 logger.info(f"Database schema is up to date (version {current_version})")

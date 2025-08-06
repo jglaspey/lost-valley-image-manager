@@ -62,26 +62,26 @@ class FileRepository:
             return self._row_to_media_file(row)
         return None
     
-    def get_pending_files(self, limit: Optional[int] = None) -> List[MediaFile]:
-        """Get files pending processing."""
+    def get_by_status(self, status: ProcessingStatus, limit: Optional[int] = None) -> List[MediaFile]:
+        """Get files by processing status."""
         sql = "SELECT * FROM files WHERE processing_status = ? ORDER BY created_at"
         if limit:
             sql += f" LIMIT {limit}"
         
-        rows = self.db.fetchall(sql, (ProcessingStatus.PENDING.value,))
+        rows = self.db.fetchall(sql, (status.value,))
         return [self._row_to_media_file(row) for row in rows]
+    
+    def get_pending_files(self, limit: Optional[int] = None) -> List[MediaFile]:
+        """Get files pending processing."""
+        return self.get_by_status(ProcessingStatus.PENDING, limit)
     
     def get_failed_files(self, limit: Optional[int] = None) -> List[MediaFile]:
         """Get files that failed processing."""
-        sql = "SELECT * FROM files WHERE processing_status = ? ORDER BY updated_at DESC"
-        if limit:
-            sql += f" LIMIT {limit}"
-        
-        rows = self.db.fetchall(sql, (ProcessingStatus.FAILED.value,))
-        return [self._row_to_media_file(row) for row in rows]
+        return self.get_by_status(ProcessingStatus.FAILED, limit)
     
-    def update_status(self, file_id: int, status: ProcessingStatus, 
-                     error_message: Optional[str] = None) -> None:
+    def update_processing_status(self, file_id: int, status: ProcessingStatus, 
+                               error_message: Optional[str] = None,
+                               processed_at: Optional[datetime] = None) -> None:
         """Update file processing status."""
         sql = """
             UPDATE files 
@@ -89,11 +89,15 @@ class FileRepository:
             WHERE id = ?
         """
         
-        processed_at = datetime.now() if status in [
-            ProcessingStatus.COMPLETED, ProcessingStatus.FAILED
-        ] else None
+        if processed_at is None and status in [ProcessingStatus.COMPLETED, ProcessingStatus.FAILED]:
+            processed_at = datetime.now()
         
         self.db.execute(sql, (status.value, error_message, processed_at, file_id))
+    
+    def update_status(self, file_id: int, status: ProcessingStatus, 
+                     error_message: Optional[str] = None) -> None:
+        """Update file processing status (backwards compatibility)."""
+        self.update_processing_status(file_id, status, error_message)
     
     def update_thumbnail_path(self, file_id: int, thumbnail_path: str) -> None:
         """Update file thumbnail path."""
@@ -116,6 +120,29 @@ class FileRepository:
         rows = self.db.fetchall(sql)
         return {row['processing_status']: row['count'] for row in rows}
     
+    def get_detailed_stats(self) -> Dict[str, int]:
+        """Get detailed statistics separating images and videos."""
+        sql = """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN mime_type LIKE 'image%' THEN 1 ELSE 0 END) as images,
+                SUM(CASE WHEN mime_type LIKE 'video%' THEN 1 ELSE 0 END) as videos,
+                SUM(CASE WHEN mime_type LIKE 'image%' AND processing_status = 'completed' THEN 1 ELSE 0 END) as images_completed,
+                SUM(CASE WHEN mime_type LIKE 'image%' AND processing_status = 'pending' THEN 1 ELSE 0 END) as images_pending,
+                SUM(CASE WHEN mime_type LIKE 'image%' AND processing_status = 'failed' THEN 1 ELSE 0 END) as images_failed
+            FROM files
+        """
+        
+        row = self.db.fetchone(sql)
+        return {
+            'total': row['total'],
+            'images': row['images'],
+            'videos': row['videos'],
+            'images_completed': row['images_completed'],
+            'images_pending': row['images_pending'],
+            'images_failed': row['images_failed']
+        }
+    
     def _row_to_media_file(self, row) -> MediaFile:
         """Convert database row to MediaFile object."""
         return MediaFile(
@@ -131,6 +158,24 @@ class FileRepository:
             processed_at=row['processed_at'],
             thumbnail_path=row['thumbnail_path']
         )
+    
+    def get_file_with_drive_url(self, file_id: int) -> Optional[dict]:
+        """Get file with Google Drive URL."""
+        media_file = self.get_by_id(file_id)
+        if not media_file:
+            return None
+        
+        return {
+            'id': media_file.id,
+            'filename': media_file.filename,
+            'file_path': media_file.file_path,
+            'mime_type': media_file.mime_type,
+            'processing_status': media_file.processing_status.value,
+            'drive_url': f"https://drive.google.com/file/d/{media_file.drive_file_id}/view",
+            'drive_download_url': f"https://drive.google.com/uc?id={media_file.drive_file_id}",
+            'created_date': media_file.created_date,
+            'processed_at': media_file.processed_at
+        }
 
 
 class MetadataRepository:
@@ -150,8 +195,8 @@ class MetadataRepository:
                 file_id, primary_subject, visual_quality, has_people, 
                 people_count, is_indoor, social_media_score, social_media_reason,
                 marketing_score, marketing_use, season, time_of_day,
-                mood_energy, color_palette
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                mood_energy, color_palette, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         cursor = self.db.execute(sql, (
@@ -168,7 +213,8 @@ class MetadataRepository:
             metadata.season,
             metadata.time_of_day,
             metadata.mood_energy,
-            metadata.color_palette
+            metadata.color_palette,
+            metadata.notes
         ))
         
         return cursor.lastrowid
@@ -197,7 +243,7 @@ class MetadataRepository:
                 primary_subject = ?, visual_quality = ?, has_people = ?,
                 people_count = ?, is_indoor = ?, social_media_score = ?,
                 social_media_reason = ?, marketing_score = ?, marketing_use = ?,
-                season = ?, time_of_day = ?, mood_energy = ?, color_palette = ?
+                season = ?, time_of_day = ?, mood_energy = ?, color_palette = ?, notes = ?
             WHERE file_id = ?
         """
         
@@ -215,6 +261,7 @@ class MetadataRepository:
             metadata.time_of_day,
             metadata.mood_energy,
             metadata.color_palette,
+            metadata.notes,
             metadata.file_id
         ))
     
@@ -338,6 +385,7 @@ class MetadataRepository:
             time_of_day=row['time_of_day'],
             mood_energy=row['mood_energy'],
             color_palette=row['color_palette'],
+            notes=row['notes'],
             extracted_at=row['extracted_at']
         )
 

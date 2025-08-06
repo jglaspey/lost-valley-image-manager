@@ -8,6 +8,7 @@ import sys
 from ..core.config import Config
 from ..database import DatabaseConnection, FileRepository
 from ..google_drive import GoogleDriveAuth, GoogleDriveService
+from ..vision import VisionAnalysisService
 from ..utils.logging import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -161,14 +162,85 @@ def stats(ctx):
         
         stats = file_repo.get_processing_stats()
         
-        click.echo("Processing statistics:")
-        total = sum(stats.values())
+        # Get detailed stats by file type
+        detailed_stats = file_repo.get_detailed_stats()
         
-        for status, count in sorted(stats.items()):
-            percentage = (count / total * 100) if total > 0 else 0
-            click.echo(f"  {status}: {count} ({percentage:.1f}%)")
+        click.echo("=== File Type Summary ===")
+        click.echo(f"Total files: {detailed_stats['total']}")
+        click.echo(f"Images: {detailed_stats['images']}")
+        click.echo(f"Videos: {detailed_stats['videos']}")
         
-        click.echo(f"\nTotal files: {total}")
+        click.echo("\n=== Image Processing Status ===")
+        click.echo(f"Completed: {detailed_stats['images_completed']}")
+        click.echo(f"Pending: {detailed_stats['images_pending']}")
+        click.echo(f"Failed: {detailed_stats['images_failed']}")
+        
+        if detailed_stats['images_failed'] > 0:
+            click.echo("\n⚠️  Failed images need attention - these are actual processing errors")
+        
+        if detailed_stats['images_pending'] > 0:
+            click.echo(f"\n▶️  Ready to process {detailed_stats['images_pending']} pending images")
+        
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--file-id', type=int, required=True, help='Database ID of file to show')
+@click.pass_context
+def show_file(ctx, file_id):
+    """Show detailed information about a specific file."""
+    config = load_config(ctx, check_credentials=False)
+    
+    try:
+        from ..database import MetadataRepository, ActivityTagRepository
+        
+        db_connection = DatabaseConnection(config.database)
+        file_repo = FileRepository(db_connection)
+        metadata_repo = MetadataRepository(db_connection)
+        tag_repo = ActivityTagRepository(db_connection)
+        
+        # Get file with URLs
+        file_info = file_repo.get_file_with_drive_url(file_id)
+        if not file_info:
+            click.echo(f"File with ID {file_id} not found", err=True)
+            sys.exit(1)
+        
+        # Get metadata if available
+        metadata = metadata_repo.get_by_file_id(file_id)
+        
+        # Display file info
+        click.echo(f"=== File Information ===")
+        click.echo(f"ID: {file_info['id']}")
+        click.echo(f"Filename: {file_info['filename']}")
+        click.echo(f"Path: {file_info['file_path']}")
+        click.echo(f"Type: {file_info['mime_type']}")
+        click.echo(f"Status: {file_info['processing_status']}")
+        click.echo(f"Google Drive URL: {file_info['drive_url']}")
+        click.echo(f"Direct Download: {file_info['drive_download_url']}")
+        
+        if metadata:
+            click.echo(f"\n=== Analysis Results ===")
+            click.echo(f"Subject: {metadata.primary_subject}")
+            click.echo(f"Visual Quality: {metadata.visual_quality}/5")
+            click.echo(f"Has People: {metadata.has_people} ({metadata.people_count})")
+            click.echo(f"Indoor/Outdoor: {'Indoor' if metadata.is_indoor else 'Outdoor'}")
+            click.echo(f"Social Media Score: {metadata.social_media_score}/5 - {metadata.social_media_reason}")
+            click.echo(f"Marketing Score: {metadata.marketing_score}/5 - {metadata.marketing_use}")
+            
+            if metadata.activity_tags:
+                click.echo(f"Activity Tags: {', '.join(metadata.activity_tags)}")
+            
+            if metadata.season:
+                click.echo(f"Season: {metadata.season}")
+            
+            if metadata.notes:
+                click.echo(f"\nContext Notes:")
+                click.echo(f"{metadata.notes}")
+        else:
+            click.echo(f"\n=== Analysis Results ===")
+            click.echo("Not yet processed")
         
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -188,6 +260,100 @@ def init_db(ctx):
         
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.pass_context
+def test_vision(ctx):
+    """Test vision model connection."""
+    config = load_config(ctx, check_credentials=False)
+    
+    try:
+        click.echo("Testing vision model connection...")
+        vision_service = VisionAnalysisService(config)
+        
+        if vision_service.test_vision_connection():
+            click.echo("✓ Vision model connection successful")
+        else:
+            click.echo("✗ Vision model connection failed", err=True)
+            sys.exit(1)
+            
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--limit', '-l', type=int, help='Limit number of files to process')
+@click.option('--file-id', type=int, help='Process specific file by database ID')
+@click.pass_context
+def process(ctx, limit, file_id):
+    """Process pending files with vision analysis."""
+    config = load_config(ctx, check_credentials=True)
+    
+    try:
+        click.echo("Initializing vision analysis service...")
+        vision_service = VisionAnalysisService(config)
+        
+        if file_id:
+            # Process specific file
+            click.echo(f"Processing file ID {file_id}...")
+            success = vision_service.process_file(file_id)
+            
+            if success:
+                click.echo("✓ File processed successfully")
+            else:
+                click.echo("✗ File processing failed", err=True)
+                sys.exit(1)
+        else:
+            # Process pending files
+            click.echo("Processing pending files...")
+            results = vision_service.process_pending_files(limit)
+            
+            click.echo(f"\nProcessing complete!")
+            click.echo(f"  Processed: {results['processed']}")
+            click.echo(f"  Failed: {results['failed']}")
+            
+            # Show updated stats
+            stats = vision_service.get_processing_stats()
+            click.echo(f"\nDatabase statistics:")
+            for status, count in sorted(stats.items()):
+                click.echo(f"  {status}: {count}")
+        
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        logger.exception("Processing failed")
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--limit', '-l', type=int, help='Limit number of files to reprocess')
+@click.pass_context
+def reprocess_failed(ctx, limit):
+    """Reprocess files that previously failed."""
+    config = load_config(ctx, check_credentials=True)
+    
+    try:
+        click.echo("Initializing vision analysis service...")
+        vision_service = VisionAnalysisService(config)
+        
+        click.echo("Reprocessing failed files...")
+        results = vision_service.reprocess_failed_files(limit)
+        
+        click.echo(f"\nReprocessing complete!")
+        click.echo(f"  Processed: {results['processed']}")
+        click.echo(f"  Failed: {results['failed']}")
+        
+        # Show updated stats
+        stats = vision_service.get_processing_stats()
+        click.echo(f"\nDatabase statistics:")
+        for status, count in sorted(stats.items()):
+            click.echo(f"  {status}: {count}")
+        
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        logger.exception("Reprocessing failed")
         sys.exit(1)
 
 

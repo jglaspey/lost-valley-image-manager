@@ -21,6 +21,11 @@ class VisionModelError(ImageProcessorError):
     pass
 
 
+class VisionAnalysisError(VisionModelError):
+    """Raised when there's an error during vision analysis."""
+    pass
+
+
 class DatabaseError(ImageProcessorError):
     """Raised when there's a database operation error."""
     pass

@@ -7,6 +7,20 @@ class DatabaseConnection {
     this.dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../../image_metadata.db');
   }
 
+  async setDatabase(dbName) {
+    // Close existing connection if any
+    if (this.db) {
+      await this.close();
+    }
+    
+    // Update the database path
+    this.dbPath = path.join(__dirname, '../../../', dbName);
+    console.log('Database switched to:', this.dbPath);
+    
+    // Reset the connection
+    this.db = null;
+  }
+
   connect() {
     return new Promise((resolve, reject) => {
       if (this.db) {
@@ -25,9 +39,10 @@ class DatabaseConnection {
     });
   }
 
-  query(sql, params = []) {
+  async query(sql, params = []) {
+    const db = await this.connect();
     return new Promise((resolve, reject) => {
-      this.db.all(sql, params, (err, rows) => {
+      db.all(sql, params, (err, rows) => {
         if (err) {
           console.error('Database query error:', err.message);
           reject(err);
@@ -38,9 +53,10 @@ class DatabaseConnection {
     });
   }
 
-  get(sql, params = []) {
+  async get(sql, params = []) {
+    const db = await this.connect();
     return new Promise((resolve, reject) => {
-      this.db.get(sql, params, (err, row) => {
+      db.get(sql, params, (err, row) => {
         if (err) {
           console.error('Database get error:', err.message);
           reject(err);
@@ -51,9 +67,10 @@ class DatabaseConnection {
     });
   }
 
-  run(sql, params = []) {
+  async run(sql, params = []) {
+    const db = await this.connect();
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function(err) {
+      db.run(sql, params, function(err) {
         if (err) {
           console.error('Database run error:', err.message);
           reject(err);

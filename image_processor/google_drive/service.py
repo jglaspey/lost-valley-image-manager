@@ -197,8 +197,55 @@ class GoogleDriveService:
             logger.error(f"Error getting file info for {file_id}: {error}")
             return None
     
-    def download_file(self, file_id: str, output_path: str) -> bool:
+    def download_file(self, file_id: str, output_path: str = None) -> bytes:
         """Download a file from Google Drive.
+        
+        Args:
+            file_id: Google Drive file ID
+            output_path: Optional local path to save the file (if None, returns bytes)
+        
+        Returns:
+            File content as bytes, or raises GoogleDriveError on failure
+        """
+        try:
+            request = self.service.files().get_media(fileId=file_id)
+            
+            if output_path:
+                # Download to file
+                with io.FileIO(output_path, 'wb') as fh:
+                    downloader = MediaIoBaseDownload(fh, request)
+                    done = False
+                    
+                    while not done:
+                        status, done = downloader.next_chunk()
+                        if status:
+                            logger.debug(f"Download {int(status.progress() * 100)}% complete")
+                
+                logger.info(f"Downloaded file {file_id} to {output_path}")
+                
+                # Read and return the file content
+                with open(output_path, 'rb') as f:
+                    return f.read()
+            else:
+                # Download to memory
+                buffer = io.BytesIO()
+                downloader = MediaIoBaseDownload(buffer, request)
+                done = False
+                
+                while not done:
+                    status, done = downloader.next_chunk()
+                    if status:
+                        logger.debug(f"Download {int(status.progress() * 100)}% complete")
+                
+                logger.debug(f"Downloaded file {file_id} to memory")
+                return buffer.getvalue()
+            
+        except HttpError as error:
+            logger.error(f"Error downloading file {file_id}: {error}")
+            raise GoogleDriveError(f"Failed to download file {file_id}: {error}")
+    
+    def download_file_to_path(self, file_id: str, output_path: str) -> bool:
+        """Download a file from Google Drive to a specific path.
         
         Args:
             file_id: Google Drive file ID
@@ -208,22 +255,9 @@ class GoogleDriveService:
             True if successful, False otherwise
         """
         try:
-            request = self.service.files().get_media(fileId=file_id)
-            
-            with io.FileIO(output_path, 'wb') as fh:
-                downloader = MediaIoBaseDownload(fh, request)
-                done = False
-                
-                while not done:
-                    status, done = downloader.next_chunk()
-                    if status:
-                        logger.debug(f"Download {int(status.progress() * 100)}% complete")
-            
-            logger.info(f"Downloaded file {file_id} to {output_path}")
+            self.download_file(file_id, output_path)
             return True
-            
-        except HttpError as error:
-            logger.error(f"Error downloading file {file_id}: {error}")
+        except GoogleDriveError:
             return False
     
     def _is_media_file(self, file_data: Dict[str, Any]) -> bool:

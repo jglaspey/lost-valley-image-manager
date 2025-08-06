@@ -76,28 +76,28 @@ export function ImageDetailModal({
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent
         side="right"
-        className="p-0 !w-[1000px] !max-w-[95vw]"
-        style={{ width: "1000px", maxWidth: "95vw" }}
+        className="p-0 !w-[1200px] !max-w-[95vw]"
+        style={{ width: "1200px", maxWidth: "95vw" }}
       >
         {/* Header */}
-        <SheetHeader className="p-6 pb-4 border-b">
+        <SheetHeader className="p-4 pb-2 border-b">
           <div className="flex items-start justify-between">
-            <SheetTitle className="text-xl pr-8 line-clamp-2">
+            <SheetTitle className="text-lg pr-8 line-clamp-2">
               {image.filename}
             </SheetTitle>
             <SheetClose />
           </div>
         </SheetHeader>
 
-        {/* Scrollable Content */}
-        <div className="h-[calc(100vh-120px)] overflow-y-auto">
-          <div className="p-6 space-y-6">
-            {/* Image */}
-            <div className="w-full">
+        {/* Content */}
+        <div className="h-[calc(100vh-80px)] overflow-y-auto">
+          <div className="flex h-full">
+            {/* Large Image */}
+            <div className="flex-1 p-4 flex items-center justify-center">
               <img
-                src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=800x600`}
+                src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=1200x1200`}
                 alt={image.primary_subject}
-                className="w-full h-auto max-h-80 object-contain bg-muted/30 rounded-lg"
+                className="max-w-full max-h-full object-contain bg-muted/30 rounded-lg"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.src = '/api/placeholder-image';
@@ -105,253 +105,142 @@ export function ImageDetailModal({
               />
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <Button className="flex-1" asChild>
-                <a
-                  href={getDriveDownloadUrl(
-                    image.drive_file_id,
+            {/* Compact Metadata Sidebar */}
+            <div className="w-80 p-4 border-l bg-gray-50/50 overflow-y-auto">
+              {/* File Info */}
+              <div className="space-y-2 mb-4">
+                <div className="text-sm font-medium truncate" title={image.filename}>
+                  {image.filename}
+                </div>
+                <div className="text-xs text-muted-foreground truncate" title={image.file_path}>
+                  {image.file_path}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatFileSize(image.file_size)} • {formatDate(image.created_date)}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 mb-4">
+                <Button size="sm" className="flex-1" asChild>
+                  <a
+                    href={getDriveDownloadUrl(image.drive_file_id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    Download
+                  </a>
+                </Button>
+                <Button variant="outline" size="sm" className="flex-1" asChild>
+                  <a
+                    href={getDriveViewUrl(image.drive_file_id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    Drive
+                  </a>
+                </Button>
+              </div>
+
+              <Separator className="mb-4" />
+
+              {/* Scores */}
+              <div className="space-y-2 mb-4">
+                <div className="text-xs font-medium mb-2">Quality Scores</div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-center">
+                    <div className={`font-medium ${getScoreColor(image.visual_quality)}`}>
+                      {image.visual_quality}/5
+                    </div>
+                    <div className="text-muted-foreground">Visual</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`font-medium ${getScoreColor(image.social_media_score)}`}>
+                      {image.social_media_score}/5
+                    </div>
+                    <div className="text-muted-foreground">Social</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`font-medium ${getScoreColor(image.marketing_score)}`}>
+                      {image.marketing_score}/5
+                    </div>
+                    <div className="text-muted-foreground">Marketing</div>
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="mb-4" />
+
+              {/* Description */}
+              <div className="mb-4">
+                <div className="text-xs font-medium mb-2">Description</div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {image.primary_subject}
+                </p>
+              </div>
+
+              {/* Quick Details */}
+              <div className="space-y-2 mb-4">
+                <div className="text-xs font-medium mb-2">Details</div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">People:</span>
+                    <span>{image.has_people ? image.people_count : 'None'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Setting:</span>
+                    <span>{image.is_indoor ? 'Indoor' : 'Outdoor'}</span>
+                  </div>
+                  {image.season !== 'unclear' && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Season:</span>
+                      <span className="capitalize">{image.season}</span>
+                    </div>
                   )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download File
-                </a>
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                asChild
-              >
-                <a
-                  href={getDriveViewUrl(image.drive_file_id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  View in Drive
-                </a>
-              </Button>
-            </div>
-
-            {/* Description */}
-            <div>
-              <h4 className="mb-3">Description</h4>
-              <p className="text-sm text-muted-foreground leading-relaxed bg-muted/30 p-4 rounded-lg">
-                {image.primary_subject}
-              </p>
-            </div>
-
-            <Separator />
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-muted/30 rounded-lg">
-                <div className="flex items-center justify-center gap-1 mb-2">
-                  <Star className="w-5 h-5" />
-                  <span
-                    className={`text-lg font-medium ${getScoreColor(image.visual_quality)}`}
-                  >
-                    {image.visual_quality}/5
-                  </span>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Visual Quality
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  ({getQualityText(image.visual_quality)})
+                  {image.time_of_day !== 'unclear' && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Time:</span>
+                      <span className="capitalize">{image.time_of_day}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="text-center p-4 bg-muted/30 rounded-lg">
-                <div className="flex items-center justify-center gap-1 mb-2">
-                  <span
-                    className={`text-lg font-medium ${getScoreColor(image.social_media_score)}`}
-                  >
-                    {image.social_media_score}/5
-                  </span>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Social Media
-                </div>
-              </div>
-              <div className="text-center p-4 bg-muted/30 rounded-lg">
-                <div className="flex items-center justify-center gap-1 mb-2">
-                  <span
-                    className={`text-lg font-medium ${getScoreColor(image.marketing_score)}`}
-                  >
-                    {image.marketing_score}/5
-                  </span>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Marketing
-                </div>
-              </div>
-            </div>
 
-            <Separator />
-
-            {/* Two-column layout for metadata */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Left Column */}
-              <div className="space-y-6">
-                {/* File Information */}
-                <div className="space-y-3">
-                  <h4>File Information</h4>
-                  <div className="space-y-3 text-sm bg-muted/30 p-4 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
-                        File Size:
-                      </span>
-                      <span>
-                        {formatFileSize(image.file_size)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
-                        Type:
-                      </span>
-                      <span>{image.mime_type}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
-                        Created:
-                      </span>
-                      <span>
-                        {formatDate(image.created_date)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground pt-2 border-t">
-                      <strong>Path:</strong> {image.file_path}
-                    </div>
-                  </div>
-                </div>
-
-                {/* People & Setting */}
-                <div className="space-y-3">
-                  <h4>People & Setting</h4>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                        <Users className="w-4 h-4" />
-                        <span>People</span>
-                      </div>
-                      <span>
-                        {image.has_people
-                          ? image.people_count
-                          : "None"}
-                      </span>
-                    </div>
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                        <MapPin className="w-4 h-4" />
-                        <span>Setting</span>
-                      </div>
-                      <span>
-                        {image.is_indoor ? "Indoor" : "Outdoor"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Activity Tags */}
-                <div className="space-y-3">
-                  <h4>Activities</h4>
-                  <div className="flex flex-wrap gap-2">
+              {/* Activity Tags */}
+              {image.activity_tags.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs font-medium mb-2">Activity Tags</div>
+                  <div className="flex flex-wrap gap-1">
                     {image.activity_tags.map((tag) => (
-                      <Badge key={tag} variant="secondary">
+                      <Badge key={tag} variant="secondary" className="text-xs py-0 px-2">
                         {activityTagLabels[tag]}
                       </Badge>
                     ))}
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Right Column */}
-              <div className="space-y-6">
-                {/* Context */}
-                <div className="space-y-3">
-                  <h4>Context</h4>
-                  <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <span className="text-muted-foreground block mb-1">
-                        Season
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className="capitalize"
-                      >
-                        {image.season}
-                      </Badge>
+              {/* Marketing Details */}
+              {(image.marketing_use || image.social_media_reason) && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium mb-2">Usage Notes</div>
+                  {image.marketing_use && (
+                    <div>
+                      <div className="text-xs text-muted-foreground">Marketing:</div>
+                      <div className="text-xs">{image.marketing_use}</div>
                     </div>
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <span className="text-muted-foreground block mb-1">
-                        Time of Day
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className="capitalize"
-                      >
-                        {image.time_of_day}
-                      </Badge>
+                  )}
+                  {image.social_media_reason && (
+                    <div>
+                      <div className="text-xs text-muted-foreground">Social Media:</div>
+                      <div className="text-xs">{image.social_media_reason}</div>
                     </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <span className="text-sm text-muted-foreground block mb-2">
-                        Mood & Energy
-                      </span>
-                      <p className="text-sm">
-                        {image.mood_energy}
-                      </p>
-                    </div>
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <span className="text-sm text-muted-foreground block mb-2">
-                        Color Palette
-                      </span>
-                      <p className="text-sm">
-                        {image.color_palette}
-                      </p>
-                    </div>
-                  </div>
+                  )}
                 </div>
-
-                {/* Social Media Feedback */}
-                <div className="space-y-3">
-                  <h4>Social Media Analysis</h4>
-                  <div className="bg-muted/30 p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">
-                        Score
-                      </span>
-                      <span
-                        className={`font-medium ${getScoreColor(image.social_media_score)}`}
-                      >
-                        {image.social_media_score}/5
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground italic">
-                      {image.social_media_reason}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
-
-            <Separator />
-
-            {/* AI Notes */}
-            <div className="space-y-3">
-              <h4>AI Notes</h4>
-              <div className="bg-muted/30 p-4 rounded-lg">
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {image.notes}
-                </p>
-              </div>
-            </div>
-
-            {/* Bottom padding for scroll */}
-            <div className="h-4"></div>
           </div>
         </div>
       </SheetContent>

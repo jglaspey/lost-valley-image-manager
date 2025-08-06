@@ -47,6 +47,7 @@ class ExtractedMetadata:
     time_of_day: Optional[str] = None  # 'morning', 'midday', 'evening', 'unclear'
     mood_energy: Optional[str] = None
     color_palette: Optional[str] = None
+    notes: Optional[str] = None  # Combined insights from filename, path, and context analysis
     extracted_at: Optional[datetime] = None
     file_id: Optional[int] = None  # Foreign key to files table
 

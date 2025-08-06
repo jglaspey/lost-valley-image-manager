@@ -7,6 +7,8 @@ import { ImageCard } from './components/ImageCard';
 import { ImageDetailModal } from './components/ImageDetailModal';
 import { SearchFilters, ProcessedImage } from './types/image';
 import { imageApi } from './api/client';
+import { Button } from './components/ui/button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -62,14 +64,14 @@ function ImageApp() {
         return await imageApi.searchImages({ 
           ...filters, 
           page, 
-          limit: 20, 
+          limit: 50, 
           sort: 'created_date', 
           order: 'DESC' 
         });
       } else {
         return await imageApi.getImages({ 
           page, 
-          limit: 20, 
+          limit: 50, 
           sort: 'created_date', 
           order: 'DESC',
           status: 'completed'
@@ -79,6 +81,8 @@ function ImageApp() {
   });
 
   const images = data?.images || [];
+  const totalCount = data?.pagination?.total || 0;
+  const totalPages = Math.ceil(totalCount / 50);
 
   // Filter images client-side for better performance
   const filteredImages = useMemo(() => {
@@ -231,7 +235,7 @@ function ImageApp() {
               </p>
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
               {filteredImages.map((image) => (
                 <ImageCard
                   key={image.id}
@@ -268,6 +272,84 @@ function ImageApp() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-8 pb-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(page - 1)}
+                disabled={page <= 1}
+                className="flex items-center gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {/* Show first page */}
+                {page > 3 && (
+                  <>
+                    <Button
+                      variant={1 === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPage(1)}
+                    >
+                      1
+                    </Button>
+                    {page > 4 && <span className="px-2 text-muted-foreground">...</span>}
+                  </>
+                )}
+                
+                {/* Show pages around current page */}
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const pageNum = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                  if (pageNum > totalPages) return null;
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={pageNum === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                
+                {/* Show last page */}
+                {page < totalPages - 2 && (
+                  <>
+                    {page < totalPages - 3 && <span className="px-2 text-muted-foreground">...</span>}
+                    <Button
+                      variant={totalPages === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPage(totalPages)}
+                    >
+                      {totalPages}
+                    </Button>
+                  </>
+                )}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(page + 1)}
+                disabled={page >= totalPages}
+                className="flex items-center gap-1"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              
+              <div className="ml-4 text-sm text-muted-foreground">
+                Page {page} of {totalPages} ({totalCount} total images)
+              </div>
             </div>
           )}
         </div>

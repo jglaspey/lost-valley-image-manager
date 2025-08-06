@@ -23,6 +23,7 @@ class VisionModelConfig:
     """Vision model configuration."""
     model_type: str = "gemma-3-4b-it-qat"
     api_endpoint: str = "http://127.0.0.1:1234"
+    provider: str = "local"  # "local" for LM Studio, "claude" for Anthropic
     temperature: float = 0.4
     max_tokens: int = 500
     max_retries: int = 3
@@ -110,6 +111,7 @@ class Config:
             vision_model=VisionModelConfig(
                 model_type=os.getenv('VISION_MODEL_TYPE', 'gemma-3-4b-it-qat'),
                 api_endpoint=os.getenv('VISION_API_ENDPOINT', 'http://127.0.0.1:1234'),
+                provider=os.getenv('VISION_PROVIDER', 'local'),
                 temperature=float(os.getenv('VISION_TEMPERATURE', '0.4')),
                 max_tokens=int(os.getenv('VISION_MAX_TOKENS', '500')),
                 max_retries=int(os.getenv('VISION_MAX_RETRIES', '3')),

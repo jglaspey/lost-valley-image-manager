@@ -5,6 +5,7 @@ import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { SearchFilters } from '../types/image';
+import { DatabasePicker } from './DatabasePicker';
 
 interface SearchHeaderProps {
   filters: SearchFilters;
@@ -118,6 +119,11 @@ export function SearchHeader({
         </div>
 
         <div className="flex items-center gap-3">
+          <DatabasePicker onDatabaseChange={() => {
+            // Clear search and reset to show fresh results from new database
+            onFiltersChange({ ...filters, query: '' });
+          }} />
+          
           <span className="text-sm text-muted-foreground">
             {resultCount} images
           </span>

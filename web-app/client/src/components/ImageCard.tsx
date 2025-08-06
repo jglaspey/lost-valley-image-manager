@@ -1,9 +1,7 @@
-import { Calendar, Users, MapPin, Star, Camera, Tag, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
-import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { ProcessedImage } from '../types/image';
-import { activityTagLabels } from '../constants/activityTags';
 
 interface ImageCardProps {
   image: ProcessedImage;
@@ -11,11 +9,6 @@ interface ImageCardProps {
 }
 
 export function ImageCard({ image, onClick }: ImageCardProps) {
-  const formatFileSize = (bytes: number) => {
-    const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(1)} MB`;
-  };
-
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card onClick from firing
     const downloadUrl = `/api/download/${image.drive_file_id}`;
@@ -29,110 +22,53 @@ export function ImageCard({ image, onClick }: ImageCardProps) {
     document.body.removeChild(link);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const getQualityColor = (score: number) => {
-    if (score >= 4) return 'bg-green-100 text-green-800';
-    if (score >= 3) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
-  };
-
   const getScoreColor = (score: number) => {
-    if (score >= 4) return 'text-green-600';
+    if (score >= 4) return 'text-green-600 font-medium';
     if (score >= 3) return 'text-yellow-600';
     return 'text-red-600';
   };
 
   return (
-    <Card className="group hover:shadow-lg transition-all duration-200 cursor-pointer" onClick={onClick}>
+    <div className="group hover:shadow-lg transition-all duration-200 cursor-pointer bg-white rounded-lg border overflow-hidden" onClick={onClick}>
       <div className="relative">
         <img
-          src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=400x300`}
+          src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=300x300`}
           alt={image.primary_subject}
-          className="w-full h-48 object-cover rounded-t-lg"
+          className="w-full aspect-square object-contain bg-gray-50"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.style.display = 'none';
             target.nextElementSibling?.classList.remove('hidden');
           }}
         />
-        <div className="hidden w-full h-48 bg-gray-200 rounded-t-lg flex items-center justify-center">
-          <div className="text-center text-gray-500">
-            <div className="text-sm">Image unavailable</div>
-            <div className="text-xs">{image.filename}</div>
+        <div className="hidden w-full aspect-square bg-gray-200 flex items-center justify-center">
+          <div className="text-center text-gray-500 text-xs">
+            <div>Image unavailable</div>
           </div>
         </div>
-        <div className="absolute top-2 left-2 flex gap-1">
-          <Badge className={`text-xs ${getQualityColor(image.visual_quality)}`}>
-            <Star className="w-3 h-3 mr-1" />
-            {image.visual_quality}/5
-          </Badge>
-          {image.social_media_score >= 4 && (
-            <Badge variant="secondary" className="text-xs">
-              Social {image.social_media_score}/5
-            </Badge>
-          )}
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDownload}
+          className="absolute top-1 right-1 h-6 w-6 p-0 bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Download original file"
+        >
+          <Download className="w-3 h-3" />
+        </Button>
       </div>
       
-      <CardContent className="p-4 space-y-3">
-        <div>
-          <h3 className="font-medium line-clamp-1">{image.filename}</h3>
-          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-            {image.primary_subject}
-          </p>
+      <div className="p-2 space-y-1">
+        <div className="text-xs font-medium truncate" title={image.filename}>
+          {image.filename}
         </div>
-
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {formatDate(image.created_date)}
-          </div>
-          <div className="flex items-center gap-1">
-            <Camera className="w-3 h-3" />
-            {formatFileSize(image.file_size)}
-          </div>
+        <div className="text-xs text-gray-500 truncate" title={image.file_path}>
+          {image.file_path}
         </div>
-
-        <div className="flex items-center gap-2 text-xs">
-          {image.has_people && (
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <Users className="w-3 h-3" />
-              {image.people_count}
-            </div>
-          )}
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <MapPin className="w-3 h-3" />
-            {image.is_indoor ? 'Indoor' : 'Outdoor'}
-          </div>
-          {image.season !== 'unclear' && (
-            <Badge variant="outline" className="text-xs capitalize">
-              {image.season}
-            </Badge>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-1">
-          {image.activity_tags.slice(0, 3).map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-xs">
-              {activityTagLabels[tag]}
-            </Badge>
-          ))}
-          {image.activity_tags.length > 3 && (
-            <Badge variant="outline" className="text-xs">
-              +{image.activity_tags.length - 3} more
-            </Badge>
-          )}
-        </div>
-
-        <div className="flex justify-between items-center pt-2 border-t">
-          <div className="flex gap-2 text-xs">
+        <div className="flex justify-between items-center text-xs">
+          <div className="flex gap-2">
+            <span className={`${getScoreColor(image.visual_quality)}`}>
+              VQ: {image.visual_quality}/5
+            </span>
             <span className={`${getScoreColor(image.social_media_score)}`}>
               SM: {image.social_media_score}/5
             </span>
@@ -140,17 +76,8 @@ export function ImageCard({ image, onClick }: ImageCardProps) {
               MK: {image.marketing_score}/5
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDownload}
-            className="h-6 px-2 text-xs hover:bg-gray-100"
-            title="Download original file"
-          >
-            <Download className="w-3 h-3" />
-          </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

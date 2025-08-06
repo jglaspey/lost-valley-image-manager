@@ -1,6 +1,6 @@
 """Database schema definitions for Google Drive Image Processor."""
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS metadata (
     time_of_day TEXT CHECK (time_of_day IN ('morning', 'midday', 'evening', 'unclear')),
     mood_energy TEXT,
     color_palette TEXT,
+    notes TEXT,
     extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(file_id)
 );
@@ -126,3 +127,31 @@ def get_schema_version(connection):
     result = cursor.fetchone()
     
     return result[0] if result and result[0] else 0
+
+
+def migrate_schema(connection):
+    """Migrate schema to the latest version."""
+    current_version = get_schema_version(connection)
+    
+    if current_version < SCHEMA_VERSION:
+        print(f"Migrating schema from version {current_version} to {SCHEMA_VERSION}")
+        
+        # Migration from version 1 to 2: Add notes field
+        if current_version < 2:
+            cursor = connection.cursor()
+            
+            # Add notes column to metadata table
+            cursor.execute("ALTER TABLE metadata ADD COLUMN notes TEXT")
+            
+            # Update schema version
+            cursor.execute(
+                "INSERT INTO schema_version (version) VALUES (?)",
+                (2,)
+            )
+            
+            connection.commit()
+            print("Added notes field to metadata table")
+        
+        print(f"Schema migration complete to version {SCHEMA_VERSION}")
+    else:
+        print(f"Schema is up to date (version {current_version})")
