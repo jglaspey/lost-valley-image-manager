@@ -196,12 +196,16 @@ function ImageApp() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="bg-primary text-primary-foreground p-4">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-medium">Lost Valley Image Manager</h1>
-          <p className="text-primary-foreground/80 mt-1">
-            Search and manage your processed permaculture image library
-          </p>
+      <div className="bg-black text-black p-4">
+        <div className="max-w-7xl mx-auto flex items-center gap-6">
+          <img 
+            src="https://images.squarespace-cdn.com/content/v1/614fff66a56f9d31cf50b5a4/2ff78f2d-1c62-4c4f-9590-c5cdb664d2ce/Lost+Valley+Logo-02.png?format=1500w" 
+            alt="Lost Valley Logo" 
+            className="w-20 h-20 object-contain invert"
+          />
+          <h1 className="text-4xl font-mono tracking-wider text-white" style={{fontFamily: 'VT323, monospace'}}>
+            THE LV FOTOFINDER 2000
+          </h1>
         </div>
       </div>
 
