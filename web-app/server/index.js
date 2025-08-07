@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 5005;
 
 // Configure trust proxy for rate limiting
 // In development, we might be behind a proxy (like webpack-dev-server)
-app.set('trust proxy', true);
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false);
 
 // Security middleware
 app.use(helmet({
@@ -112,7 +112,7 @@ process.on('SIGINT', () => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Database: ${process.env.DATABASE_PATH || '../databases/image_metadata.db'}`);
+  console.log(`Database: ${process.env.DATABASE_PATH || '../image_metadata.db'}`);
 });
 
 module.exports = app;

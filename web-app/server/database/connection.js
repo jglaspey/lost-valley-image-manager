@@ -4,7 +4,7 @@ const path = require('path');
 class DatabaseConnection {
   constructor() {
     this.db = null;
-    this.dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../../databases/image_metadata.db');
+    this.dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../../image_metadata.db');
   }
 
   async setDatabase(dbName) {
@@ -14,7 +14,7 @@ class DatabaseConnection {
     }
     
     // Update the database path
-    this.dbPath = path.join(__dirname, '../../../databases/', dbName);
+    this.dbPath = path.join(__dirname, '../../../', dbName);
     console.log('Database switched to:', this.dbPath);
     
     // Reset the connection
