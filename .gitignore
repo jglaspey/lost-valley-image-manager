@@ -46,14 +46,22 @@ ehthumbs.db
 Thumbs.db
 
 # Project Specific
-image_metadata.db
-image_metadata.db-*
+*.db
+*.db-shm
+*.db-wal
+databases/*.db
+databases/*.db-*
 thumbnails/
+web-app/thumbnails/
 logs/
 backups/
 credentials.json
 token.json
+web-app/credentials.json
+web-app/token.json
 .env
+.env.*
+web-app/.env*
 
 # Testing
 .pytest_cache/
@@ -67,3 +75,15 @@ docs/_build/
 
 # External repositories
 context7/
+
+# Node modules
+node_modules/
+web-app/node_modules/
+web-app/client/node_modules/
+
+# Build outputs
+web-app/client/build/
+deployment.tar.gz
+
+# Cache files
+web-app/client/node_modules/.cache/

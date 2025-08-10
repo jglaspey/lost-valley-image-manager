@@ -34,8 +34,8 @@ COPY server/ ./server/
 # Copy built frontend from previous stage
 COPY --from=frontend-build /app/client/build ./client/build
 
-# Copy environment file (if exists)
-COPY .env* ./
+# NOTE: credentials.json and token.json will be mounted as volumes
+# They are NOT included in the image for security reasons
 
 # Stage 3: Final production image
 FROM node:22.17-alpine

@@ -1,0 +1,7 @@
+{
+  "access_token": "YOUR_ACCESS_TOKEN",
+  "refresh_token": "YOUR_REFRESH_TOKEN",
+  "scope": "https://www.googleapis.com/auth/drive.readonly",
+  "token_type": "Bearer",
+  "expiry_date": 1234567890000
+}
