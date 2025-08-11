@@ -66,7 +66,7 @@ EOF
 restart_services() {
     echo "🔄 Restarting services on production server..."
     
-    ssh "${REMOTE_USER}@${REMOTE_HOST}" << 'EOF'
+    ssh -i ~/.ssh/id_ed25519_digitalocean "${REMOTE_USER}@${REMOTE_HOST}" << 'EOF'
 cd /var/www/lost-valley
 
 # Stop existing containers
@@ -98,7 +98,7 @@ check_health() {
         echo "🌐 Application available at: http://${REMOTE_HOST}"
     else
         echo "❌ Health check failed - please check the logs"
-        ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && docker-compose logs --tail=50"
+        ssh -i ~/.ssh/id_ed25519_digitalocean "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && docker-compose logs --tail=50"
         exit 1
     fi
 }
@@ -143,12 +143,12 @@ main() {
                 ;;
             4)
                 echo "📊 Checking deployment status..."
-                ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && docker-compose ps"
+                ssh -i ~/.ssh/id_ed25519_digitalocean "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && docker-compose ps"
                 check_health
                 ;;
             5)
                 echo "📋 Showing recent logs..."
-                ssh "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && docker-compose logs --tail=100"
+                ssh -i ~/.ssh/id_ed25519_digitalocean "${REMOTE_USER}@${REMOTE_HOST}" "cd ${REMOTE_PATH} && docker-compose logs --tail=100"
                 ;;
             6)
                 echo "👋 Goodbye!"
