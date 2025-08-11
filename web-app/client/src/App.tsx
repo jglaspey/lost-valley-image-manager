@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { SearchHeader } from './components/SearchHeader';
@@ -6,6 +6,8 @@ import { FilterPanel } from './components/FilterPanel';
 import { ImageCard } from './components/ImageCard';
 import { MasonryGallery } from './components/CSSMasonryGallery';
 import { ImageDetailModal } from './components/ImageDetailModal';
+import LoginForm from './components/LoginForm';
+import { AuthenticatedImage } from './components/AuthenticatedImage';
 import { SearchFilters, ProcessedImage } from './types/image';
 import { imageApi } from './api/client';
 import { Button } from './components/ui/button';
@@ -42,11 +44,49 @@ const initialFilters: SearchFilters = {
 };
 
 function ImageApp() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedImage, setSelectedImage] = useState<ProcessedImage | null>(null);
   const [page, setPage] = useState(1);
+
+  // Check if already authenticated on mount
+  useEffect(() => {
+    const savedPassword = localStorage.getItem('lv-password');
+    if (savedPassword === 'LV81868LV') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = async (password: string) => {
+    setLoginLoading(true);
+    setLoginError('');
+    
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+      });
+      
+      if (response.ok) {
+        localStorage.setItem('lv-password', password);
+        setIsAuthenticated(true);
+      } else {
+        const data = await response.json();
+        setLoginError(data.error || 'Invalid password');
+      }
+    } catch (error) {
+      setLoginError('Connection error. Please try again.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   // Check if we're using search or just listing
   const hasActiveFilters = useMemo(() => {
@@ -67,7 +107,7 @@ function ImageApp() {
       filters.aspectRatio !== 'any';
   }, [filters]);
 
-  // Query for images
+  // Query for images - only when authenticated
   const { data, isLoading, error } = useQuery({
     queryKey: ['images', filters, page, hasActiveFilters],
     queryFn: async () => {
@@ -89,6 +129,7 @@ function ImageApp() {
         });
       }
     },
+    enabled: isAuthenticated, // Only run query when authenticated
   });
 
   const images = data?.images || [];
@@ -182,6 +223,17 @@ function ImageApp() {
     setPage(1); // Reset to first page when filters change
   };
 
+  // Show login form if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <LoginForm 
+        onLogin={handleLogin}
+        isLoading={loginLoading}
+        error={loginError}
+      />
+    );
+  }
+
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -219,6 +271,7 @@ function ImageApp() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         resultCount={filteredImages.length}
+        isAuthenticated={isAuthenticated}
       />
 
       {/* Main Content */}
@@ -262,7 +315,7 @@ function ImageApp() {
                   className="flex gap-4 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
                   onClick={() => setSelectedImage(image)}
                 >
-                  <img
+                  <AuthenticatedImage
                     src={image.drive_download_url || image.thumbnail_path}
                     alt={image.primary_subject}
                     className="w-24 h-24 object-cover rounded"

@@ -16,6 +16,7 @@ interface SearchHeaderProps {
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
   resultCount: number;
+  isAuthenticated?: boolean;
 }
 
 export function SearchHeader({ 
@@ -26,7 +27,8 @@ export function SearchHeader({
   activeFilterCount,
   viewMode,
   onViewModeChange,
-  resultCount
+  resultCount,
+  isAuthenticated = false
 }: SearchHeaderProps) {
   return (
     <div className="bg-background border-b p-4 space-y-4">
@@ -119,7 +121,9 @@ export function SearchHeader({
         </div>
 
         <div className="flex items-center gap-3">
-          <DatabasePicker onDatabaseChange={() => {
+          <DatabasePicker 
+            isAuthenticated={isAuthenticated}
+            onDatabaseChange={() => {
             // Clear search and reset to show fresh results from new database
             onFiltersChange({ ...filters, query: '' });
           }} />

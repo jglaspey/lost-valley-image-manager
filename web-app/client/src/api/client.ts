@@ -11,13 +11,26 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
-// Add request interceptor for error handling
+// Add request interceptor to include password
+apiClient.interceptors.request.use(
+  (config) => {
+    const password = localStorage.getItem('lv-password');
+    if (password) {
+      config.headers['x-password'] = password;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Add response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized access
-      window.location.href = '/login';
+      // Clear password and reload page to show login
+      localStorage.removeItem('lv-password');
+      window.location.reload();
     }
     return Promise.reject(error);
   }

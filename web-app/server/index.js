@@ -34,25 +34,55 @@ app.use(helmet({
   },
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
-
-// Middleware
+// Middleware (must come before auth middleware)
 app.use(compression());
 app.use(morgan('combined'));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL 
-    : ['http://localhost:3005', 'http://127.0.0.1:3005'],
+    : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3005', 'http://127.0.0.1:3005'],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Rate limiting (with better trust proxy handling)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'development' ? 10000 : 1000, // Higher limit in dev
+  message: 'Too many requests from this IP, please try again later.',
+  skip: (req) => req.path === '/api/login', // Skip rate limiting for login
+  trustProxy: process.env.NODE_ENV === 'development' // Trust proxy in dev
+});
+app.use('/api/', limiter);
+
+// Login endpoint (must come before auth middleware)
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  
+  if (password === 'LV81868LV') {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ error: 'Invalid password' });
+  }
+});
+
+// Simple password protection middleware (after body parser and login endpoint)
+app.use('/api', (req, res, next) => {
+  // Skip auth for health check and login endpoint
+  if (req.path === '/health' || req.path === '/login') {
+    return next();
+  }
+  
+  // Check for password in header
+  const password = req.headers['x-password'];
+  
+  if (password !== 'LV81868LV') {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  next();
+});
 
 // API routes
 app.use('/api/images', imageRoutes);

@@ -19,13 +19,14 @@ interface DatabaseInfo {
 
 interface DatabasePickerProps {
   onDatabaseChange?: (database: string) => void;
+  isAuthenticated?: boolean;
 }
 
-export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange }) => {
+export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange, isAuthenticated = false }) => {
   const [selectedDb, setSelectedDb] = useState<string>('');
   const queryClient = useQueryClient();
 
-  // Fetch available databases
+  // Fetch available databases - only when authenticated
   const { data: databases, isLoading: isLoadingDatabases, refetch: refetchDatabases } = useQuery({
     queryKey: ['databases'],
     queryFn: async () => {
@@ -34,9 +35,10 @@ export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange
       const data = await response.json();
       return data.databases as DatabaseInfo[];
     },
+    enabled: isAuthenticated,
   });
 
-  // Fetch current database
+  // Fetch current database - only when authenticated
   const { data: currentDatabase, isLoading: isLoadingCurrent } = useQuery({
     queryKey: ['current-database'],
     queryFn: async () => {
@@ -45,6 +47,7 @@ export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange
       const data = await response.json();
       return data;
     },
+    enabled: isAuthenticated,
   });
 
   // Switch database mutation

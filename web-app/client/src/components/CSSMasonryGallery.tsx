@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Download } from 'lucide-react';
 import { Button } from './ui/button';
 import { ProcessedImage } from '../types/image';
+import { AuthenticatedImage } from './AuthenticatedImage';
 
 interface MasonryGalleryProps {
   images: ProcessedImage[];
@@ -135,12 +136,10 @@ function ImageCard({
           )}
           
           {/* Actual image */}
-          <img
+          <AuthenticatedImage
             src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=800x600`}
             alt={image.primary_subject || image.filename}
-            className={`w-full h-auto object-cover block transition-opacity duration-300 ${
-              isLoading ? 'opacity-0' : 'opacity-100'
-            }`}
+            className="w-full h-auto object-cover block"
             onLoad={() => setIsLoading(false)}
             onError={() => {
               setIsLoading(false);
