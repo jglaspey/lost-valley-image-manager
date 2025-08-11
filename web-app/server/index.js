@@ -52,7 +52,7 @@ const limiter = rateLimit({
   max: process.env.NODE_ENV === 'development' ? 10000 : 1000, // Higher limit in dev
   message: 'Too many requests from this IP, please try again later.',
   skip: (req) => req.path === '/api/login', // Skip rate limiting for login
-  trustProxy: process.env.NODE_ENV === 'development' // Trust proxy in dev
+  trustProxy: process.env.NODE_ENV === 'production' ? 1 : false // Match main trust proxy setting
 });
 app.use('/api/', limiter);
 
