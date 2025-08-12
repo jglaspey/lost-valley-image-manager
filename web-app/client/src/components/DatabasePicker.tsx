@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { databaseApi } from '../api/client';
 import {
   Select,
   SelectContent,
@@ -30,9 +31,7 @@ export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange
   const { data: databases, isLoading: isLoadingDatabases, refetch: refetchDatabases } = useQuery({
     queryKey: ['databases'],
     queryFn: async () => {
-      const response = await fetch('/api/databases/list');
-      if (!response.ok) throw new Error('Failed to fetch databases');
-      const data = await response.json();
+      const data = await databaseApi.getDatabases();
       return data.databases as DatabaseInfo[];
     },
     enabled: isAuthenticated,
@@ -42,10 +41,7 @@ export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange
   const { data: currentDatabase, isLoading: isLoadingCurrent } = useQuery({
     queryKey: ['current-database'],
     queryFn: async () => {
-      const response = await fetch('/api/databases/current');
-      if (!response.ok) throw new Error('Failed to fetch current database');
-      const data = await response.json();
-      return data;
+      return await databaseApi.getCurrentDatabase();
     },
     enabled: isAuthenticated,
   });
@@ -53,20 +49,7 @@ export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange
   // Switch database mutation
   const switchDatabaseMutation = useMutation({
     mutationFn: async (database: string) => {
-      const response = await fetch('/api/databases/switch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ database }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to switch database');
-      }
-      
-      return response.json();
+      return await databaseApi.switchDatabase(database);
     },
     onSuccess: (data) => {
       toast.success(`Successfully switched to ${data.database}`);

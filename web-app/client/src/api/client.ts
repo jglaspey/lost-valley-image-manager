@@ -95,3 +95,23 @@ export const healthApi = {
     return response.data;
   },
 };
+
+export const databaseApi = {
+  // Get list of available databases
+  getDatabases: async (): Promise<{ databases: Array<{ name: string; displayName: string; path: string }> }> => {
+    const response = await apiClient.get('/databases/list');
+    return response.data;
+  },
+
+  // Get current database
+  getCurrentDatabase: async (): Promise<{ database: string; displayName: string }> => {
+    const response = await apiClient.get('/databases/current');
+    return response.data;
+  },
+
+  // Switch to a different database
+  switchDatabase: async (database: string): Promise<{ database: string; message: string }> => {
+    const response = await apiClient.post('/databases/switch', { database });
+    return response.data;
+  },
+};
