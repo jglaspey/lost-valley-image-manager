@@ -1,0 +1,17 @@
+[providers]
+node = '20'
+
+[variables]
+NODE_ENV = 'production'
+
+[phases.setup]
+nixPkgs = ['nodejs_20', 'npm']
+
+[phases.install]
+cmds = ['cd web-app', 'npm install']
+
+[phases.build]
+cmds = ['cd web-app', 'npm run build']
+
+[start]
+cmd = 'cd web-app && npm start'
