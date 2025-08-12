@@ -7,8 +7,8 @@ const router = express.Router();
 // Get list of available database files
 router.get('/list', async (req, res) => {
   try {
-    // Look for .db files in the databases directory
-    const databasesDir = path.join(__dirname, '..', '..', '..');
+    // Look for .db files in the web-app directory
+    const databasesDir = path.join(__dirname, '..', '..');
     const files = await fs.readdir(databasesDir);
     
     // Filter for .db files
@@ -39,10 +39,11 @@ router.get('/list', async (req, res) => {
 
 // Get current database
 router.get('/current', (req, res) => {
-  const currentDb = process.env.DATABASE_PATH || '../image_metadata.db';
+  const currentDb = process.env.DATABASE_PATH || 'image_metadata.db';
+  const dbName = path.basename(currentDb);
   res.json({ 
-    database: currentDb,
-    displayName: currentDb.replace('.db', '').replace(/_/g, ' ').replace(/-/g, ' ')
+    database: dbName,
+    displayName: dbName.replace('.db', '').replace(/_/g, ' ').replace(/-/g, ' ')
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ')
@@ -59,7 +60,7 @@ router.post('/switch', async (req, res) => {
     }
 
     // Check if database file exists
-    const databasesDir = path.join(__dirname, '..', '..', '..');
+    const databasesDir = path.join(__dirname, '..', '..');
     const dbPath = path.join(databasesDir, database);
     
     try {
