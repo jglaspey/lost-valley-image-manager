@@ -108,11 +108,25 @@ app.use('/api/databases', databaseRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const os = require('os');
+  const mem = process.memoryUsage();
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    memory: {
+      rssMB: Math.round(mem.rss / 1024 / 1024),
+      heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+      externalMB: Math.round(mem.external / 1024 / 1024),
+      arrayBuffersMB: Math.round((mem.arrayBuffers || 0) / 1024 / 1024)
+    },
+    system: {
+      totalMemMB: Math.round(os.totalmem() / 1024 / 1024),
+      freeMemMB: Math.round(os.freemem() / 1024 / 1024),
+      loadAverage: os.loadavg()
+    }
   });
 });
 
