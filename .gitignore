@@ -87,3 +87,6 @@ deployment.tar.gz
 
 # Cache files
 web-app/client/node_modules/.cache/
+
+# Allow the production database to be included in Railway builds
+!web-app/image_metadata.db
