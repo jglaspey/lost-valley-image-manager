@@ -1,20 +1,14 @@
 [providers]
-node = '20'
+node = true
 
 [variables]
 NODE_ENV = 'production'
 
 [phases.setup]
 nixPkgs = ['nodejs_20', 'npm']
-onlyIncludeFiles = [
-  'web-app/**',
-  'Procfile',
-  'railway.toml',
-  'railway.json'
-]
 
 [phases.install]
-cmd = 'cd web-app && npm ci --only=production'
+cmd = 'cd web-app && npm install'
 
 [phases.build]
 cmd = 'cd web-app && npm run build'
