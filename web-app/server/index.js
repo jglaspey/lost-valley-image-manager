@@ -13,6 +13,7 @@ const statsRoutes = require('./routes/stats');
 const thumbnailRoutes = require('./routes/thumbnails');
 const downloadRoutes = require('./routes/download');
 const databaseRoutes = require('./routes/databases');
+const { createPlaceholder } = require('./utils/placeholder');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -67,10 +68,23 @@ app.post('/api/login', (req, res) => {
   }
 });
 
+// Lightweight placeholder image endpoint (before auth middleware)
+app.get('/api/placeholder-image', async (req, res) => {
+  try {
+    const size = req.query.size || '400x300';
+    const [width, height] = size.split('x').map(Number);
+    const image = await createPlaceholder(width, height);
+    res.set('Content-Type', 'image/png');
+    res.send(image);
+  } catch (e) {
+    res.status(500).end();
+  }
+});
+
 // Simple password protection middleware (after body parser and login endpoint)
 app.use('/api', (req, res, next) => {
   // Skip auth for health check and login endpoint
-  if (req.path === '/health' || req.path === '/login') {
+  if (req.path === '/health' || req.path === '/login' || req.path === '/placeholder-image') {
     return next();
   }
   

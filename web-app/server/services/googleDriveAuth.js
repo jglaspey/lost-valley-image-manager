@@ -12,17 +12,32 @@ class GoogleDriveService {
 
   async initialize() {
     try {
-      // Load credentials
-      const credentials = JSON.parse(fs.readFileSync(this.credentialsPath));
-      const { client_secret, client_id, redirect_uris } = credentials.installed;
-      
-      // Create OAuth2 client
-      this.auth = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
-      
-      // Load existing token
-      const token = JSON.parse(fs.readFileSync(this.tokenPath));
-      this.auth.setCredentials(token);
-      
+      // Prefer service account JSON from env for production
+      const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+      if (serviceAccountJson) {
+        const creds = JSON.parse(serviceAccountJson);
+        this.auth = new google.auth.JWT(
+          creds.client_email,
+          undefined,
+          creds.private_key,
+          ['https://www.googleapis.com/auth/drive.readonly']
+        );
+      } else {
+        // Fallback to OAuth2 credentials from file or env
+        let credentials;
+        if (process.env.GOOGLE_OAUTH_CLIENT_JSON) {
+          credentials = JSON.parse(process.env.GOOGLE_OAUTH_CLIENT_JSON);
+        } else {
+          credentials = JSON.parse(fs.readFileSync(this.credentialsPath));
+        }
+        const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
+        this.auth = new google.auth.OAuth2(client_id, client_secret, redirect_uris?.[0]);
+        const token = process.env.GOOGLE_OAUTH_TOKEN_JSON
+          ? JSON.parse(process.env.GOOGLE_OAUTH_TOKEN_JSON)
+          : JSON.parse(fs.readFileSync(this.tokenPath));
+        this.auth.setCredentials(token);
+      }
+
       // Create Drive API instance
       this.drive = google.drive({ version: 'v3', auth: this.auth });
       

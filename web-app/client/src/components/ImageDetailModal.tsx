@@ -95,14 +95,11 @@ export function ImageDetailModal({
           <div className="flex h-full">
             {/* Large Image */}
             <div className="flex-1 p-4 flex items-center justify-center">
-              <img
+              <AuthenticatedImage
                 src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=1200x900`}
                 alt={image.primary_subject}
                 className="max-w-full max-h-full object-contain bg-muted/30 rounded-lg"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = '/api/placeholder-image';
-                }}
+                onError={() => {}}
               />
             </div>
 
