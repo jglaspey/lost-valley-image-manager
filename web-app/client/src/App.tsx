@@ -56,7 +56,7 @@ function ImageApp() {
   // Check if already authenticated on mount
   useEffect(() => {
     const savedPassword = localStorage.getItem('lv-password');
-    if (savedPassword === 'LV81868LV') {
+    if (savedPassword) {
       setIsAuthenticated(true);
     }
   }, []);
