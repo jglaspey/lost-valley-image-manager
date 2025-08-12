@@ -10,14 +10,12 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
-*.db
-*.db-shm
-*.db-wal
 config/
-databases/
 archive/
 credentials.json
 token.json
 
-# Keep only web-app for Railway
+# Keep only web-app and necessary database files for Railway
 !web-app/
+!*.db
+!databases/
