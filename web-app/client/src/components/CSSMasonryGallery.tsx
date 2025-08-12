@@ -29,16 +29,25 @@ export function MasonryGallery({ images, onImageClick }: MasonryGalleryProps) {
     return baseWidth; // 200px
   };
 
-  const handleDownload = (e: React.MouseEvent, image: ProcessedImage) => {
+  const handleDownload = async (e: React.MouseEvent, image: ProcessedImage) => {
     e.stopPropagation();
-    const downloadUrl = `/api/download/${image.drive_file_id}`;
-    
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = image.filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await fetch(`/api/download/${image.drive_file_id}` , {
+        headers: { 'x-password': localStorage.getItem('lv-password') || '' }
+      });
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = image.filename || `${image.drive_file_id}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error', err);
+    }
   };
 
   const getScoreColor = (score: number) => {
@@ -97,16 +106,25 @@ function ImageCard({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
-  const handleDownload = (e: React.MouseEvent) => {
+  const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const downloadUrl = `/api/download/${image.drive_file_id}`;
-    
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = image.filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await fetch(`/api/download/${image.drive_file_id}`, {
+        headers: { 'x-password': localStorage.getItem('lv-password') || '' }
+      });
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = image.filename || `${image.drive_file_id}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error', err);
+    }
   };
 
   return (

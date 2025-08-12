@@ -9,17 +9,25 @@ interface ImageCardProps {
 }
 
 export function ImageCard({ image, onClick }: ImageCardProps) {
-  const handleDownload = (e: React.MouseEvent) => {
+  const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card onClick from firing
-    const downloadUrl = `/api/download/${image.drive_file_id}`;
-    
-    // Create a hidden link and trigger download
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = image.filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await fetch(`/api/download/${image.drive_file_id}`, {
+        headers: { 'x-password': localStorage.getItem('lv-password') || '' }
+      });
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = image.filename || `${image.drive_file_id}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error', err);
+    }
   };
 
   const getScoreColor = (score: number) => {
