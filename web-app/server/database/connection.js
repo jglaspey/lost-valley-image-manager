@@ -27,12 +27,22 @@ class DatabaseConnection {
         return resolve(this.db);
       }
 
-      this.db = new sqlite3.Database(this.dbPath, (err) => {
+      this.db = new sqlite3.Database(this.dbPath, async (err) => {
         if (err) {
           console.error('Error opening database:', err.message);
           reject(err);
         } else {
           console.log('Connected to SQLite database at:', this.dbPath);
+          
+          // Debug: Check what tables exist
+          this.db.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
+            if (err) {
+              console.error('Error checking tables:', err.message);
+            } else {
+              console.log('Available tables:', tables.map(t => t.name).join(', '));
+            }
+          });
+          
           resolve(this.db);
         }
       });
