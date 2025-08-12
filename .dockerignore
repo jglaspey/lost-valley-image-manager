@@ -3,6 +3,7 @@ requirements-dev.txt
 setup.py
 image_processor/
 tests/
+main.py
 *.py
 venv/
 .venv/
@@ -17,3 +18,6 @@ databases/
 archive/
 credentials.json
 token.json
+
+# Keep only web-app for Railway
+!web-app/
