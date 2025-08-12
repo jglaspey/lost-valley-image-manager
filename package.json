@@ -1,0 +1,13 @@
+{
+  "name": "lost-valley-railway-deploy",
+  "version": "1.0.0",
+  "description": "Railway deployment wrapper for Lost Valley Image Manager",
+  "scripts": {
+    "build": "cd web-app && npm install && npm run build",
+    "start": "cd web-app && npm start",
+    "install": "cd web-app && npm install"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

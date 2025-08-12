@@ -1,1 +1,1 @@
-web: cd web-app && npm run build && npm start
+web: npm start

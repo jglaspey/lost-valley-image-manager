@@ -4,14 +4,8 @@ node = true
 [variables]
 NODE_ENV = 'production'
 
-[phases.setup]
-nixPkgs = ['nodejs_20', 'npm']
-
-[phases.install]
-cmd = 'cd web-app && npm install'
-
 [phases.build]
-cmd = 'cd web-app && npm run build'
+cmd = 'npm run build'
 
 [start]
-cmd = 'cd web-app && npm start'
+cmd = 'npm start'
