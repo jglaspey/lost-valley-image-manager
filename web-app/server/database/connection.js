@@ -5,6 +5,21 @@ class DatabaseConnection {
   constructor() {
     this.db = null;
     this.dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../../image_metadata.db');
+    console.log('Database path configured:', this.dbPath);
+    console.log('Database path exists:', require('fs').existsSync(this.dbPath));
+    console.log('Current working directory:', process.cwd());
+    console.log('__dirname:', __dirname);
+    
+    // List available database files
+    const fs = require('fs');
+    const rootDir = path.join(__dirname, '../../..');
+    console.log('Root directory:', rootDir);
+    try {
+      const files = fs.readdirSync(rootDir).filter(f => f.endsWith('.db'));
+      console.log('Available database files in root:', files);
+    } catch (err) {
+      console.log('Could not read root directory:', err.message);
+    }
   }
 
   async setDatabase(dbName) {
