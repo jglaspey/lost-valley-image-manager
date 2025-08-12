@@ -106,7 +106,11 @@ app.get('/api/health', (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
   
-  app.get('*', (req, res) => {
+  // Handle React routing - serve index.html for all non-API routes
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
     res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
   });
 }
