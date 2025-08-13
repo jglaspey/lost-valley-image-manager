@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database/connection');
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
 
 // Initialize database connection
 db.connect().catch(console.error);
@@ -302,6 +305,50 @@ router.put('/:id/metadata', async (req, res) => {
 
   } catch (error) {
     console.error('Error updating metadata:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/images/:id/rotate - Rotate image 90 degrees counter-clockwise
+router.post('/:id/rotate', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const image = await db.get('SELECT file_path, thumbnail_path, drive_file_id FROM files WHERE id = ?', [id]);
+    if (!image) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const filePath = path.resolve(__dirname, '../../', image.file_path);
+
+    const { data, info } = await sharp(filePath)
+      .rotate(270)
+      .toBuffer({ resolveWithObject: true });
+    await fs.promises.writeFile(filePath, data);
+
+    if (image.thumbnail_path) {
+      const thumbPath = path.resolve(__dirname, '../../', image.thumbnail_path);
+      if (fs.existsSync(thumbPath)) {
+        const rotatedThumb = await sharp(thumbPath).rotate(270).toBuffer();
+        await fs.promises.writeFile(thumbPath, rotatedThumb);
+      }
+    }
+
+    await db.run('UPDATE files SET width = ?, height = ? WHERE id = ?', [info.width, info.height, id]);
+
+    const thumbnailsDir = path.join(__dirname, '../../thumbnails');
+    if (fs.existsSync(thumbnailsDir)) {
+      const files = await fs.promises.readdir(thumbnailsDir);
+      await Promise.all(
+        files
+          .filter((f) => f.startsWith(`${image.drive_file_id}_`))
+          .map((f) => fs.promises.unlink(path.join(thumbnailsDir, f)))
+      );
+    }
+
+    res.json({ message: 'Image rotated' });
+  } catch (error) {
+    console.error('Error rotating image:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
