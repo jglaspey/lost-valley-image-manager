@@ -35,6 +35,18 @@ app.use(helmet({
   },
 }));
 
+// Force HTTPS in production when behind Railway's proxy
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    if (forwardedProto && forwardedProto !== 'https') {
+      const host = req.headers.host;
+      return res.redirect(308, `https://${host}${req.originalUrl}`);
+    }
+    next();
+  });
+}
+
 // Middleware (must come before auth middleware)
 app.use(compression());
 app.use(morgan('combined'));
