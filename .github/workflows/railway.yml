@@ -31,4 +31,4 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up --ci
+          railway up --service "lost-valley-image-manager" --environment production --ci
