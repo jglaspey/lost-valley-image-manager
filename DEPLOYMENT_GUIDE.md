@@ -1,13 +1,52 @@
-# Lost Valley Image Manager - Complete Deployment Guide
+# Lost Valley Image Manager - Deployment Guide (Railway)
+
+We have migrated production to Railway. The DigitalOcean droplet process below is archived.
 
 ## 📋 Prerequisites
-- Digital Ocean account
-- Domain name (optional, but recommended for SSL)
-- Local installation of Git and SSH client
-- Your Google Drive OAuth credentials (credentials.json and token.json)
+- Railway account and CLI
+- GitHub repository access
+- Google Drive credentials (service account recommended)
 
-## 🚀 Step-by-Step Deployment Process
+## 🚀 Railway Deployment
 
+### Configure variables
+Use one of the two auth modes.
+
+Service account (recommended):
+```bash
+railway variables set GOOGLE_SERVICE_ACCOUNT_JSON="$(cat /absolute/path/to/service-account.json)"
+```
+
+OAuth client + token:
+```bash
+railway variables set \
+  GOOGLE_OAUTH_CLIENT_JSON="$(cat /absolute/path/to/credentials.json)" \
+  GOOGLE_OAUTH_TOKEN_JSON="$(cat /absolute/path/to/token.json)"
+```
+
+Optional app vars:
+```bash
+railway variables set LV_PASSWORD="your-password"
+```
+
+### Deploy
+```bash
+git add -A && git commit -m "deploy" && git push
+railway up
+```
+
+### Verify
+- Open the deployment URL (`*.up.railway.app`)
+- Check `/api/health`
+- Watch logs: `railway logs -f`
+
+### Notes
+- We force HTTPS redirect in production.
+- Thumbnails and original downloads are cached on disk inside the container and persist only for the lifetime of a deployment.
+
+---
+
+## Archived: DigitalOcean Instructions
 ### Step 1: Create Digital Ocean Droplet
 
 1. **Log into Digital Ocean** and click "Create" → "Droplets"

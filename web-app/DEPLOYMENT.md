@@ -1,53 +1,77 @@
-# Lost Valley Image Manager - Deployment Guide
+# Lost Valley Image Manager - Railway Deployment Guide
 
-## Overview
-This guide covers the deployment workflow for the Lost Valley Image Manager application from local development to production on Digital Ocean.
+This app now deploys on Railway. It’s faster, cheaper, and simpler than our previous DigitalOcean/Docker setup. The old droplet workflow is archived below for reference.
 
-## Environment Configuration
+## Quick Start
 
-### Local Development
-- Use `.env.local` for local development settings
-- Database path: `../image_metadata.db` (relative to project root)
-- API URL: `http://localhost:5005/api`
+Prereqs:
+- Railway CLI installed and logged in (`npm i -g @railway/cli && railway login`).
+- GitHub repo connected to Railway project (already configured).
 
-### Production
-- Environment variables are managed through Docker Compose
-- Database path: `/app/data/image_metadata.db` (Docker volume mount)
-- Nginx reverse proxy handles routing
-
-## Deployment Workflow
-
-### Quick Deployment
+Deploy:
 ```bash
-# From the web-app directory
-./deploy.sh
+# From repo root
+git add -A && git commit -m "deploy" && git push
+railway up
 ```
 
-The deployment script offers several options:
-1. **Full deployment** - Sync files + restart services
-2. **Quick sync** - Files only (faster for small changes)
-3. **Restart services only** - When only configuration changed
-4. **Check deployment status** - Health check and service status
-5. **View remote logs** - Debug deployment issues
+Railway uses Nixpacks and our `railway.toml` to:
+- Build client (`cd web-app && npm install && npm run build`)
+- Start server (`cd web-app && npm start`)
 
-### Manual Deployment Steps
+## Environment Variables
 
-1. **Commit your changes locally**
-   ```bash
-   git add .
-   git commit -m "Your changes"
-   git push origin main
-   ```
+Authentication (pick one):
+- Service account (recommended)
+  - `GOOGLE_SERVICE_ACCOUNT_JSON` = contents of the service account key JSON
+  - Share the Drive or files with the service account email (Viewer)
+- OAuth client + token
+  - `GOOGLE_OAUTH_CLIENT_JSON` = contents of `credentials.json`
+  - `GOOGLE_OAUTH_TOKEN_JSON` = contents of `token.json`
 
-2. **Deploy to production**
-   ```bash
-   ./deploy.sh
-   ```
+App config:
+- `LV_PASSWORD` (optional; falls back to current hard-coded password if unset)
+- `FRONTEND_URL` (optional; for CORS; defaults work for Railway domain)
 
-3. **Verify deployment**
-   - Visit http://134.199.214.90
-   - Check `/api/health` endpoint
-   - Review logs if needed
+Set variables:
+```bash
+railway variables set GOOGLE_SERVICE_ACCOUNT_JSON="$(cat /absolute/path/to/service-account.json)"
+# or
+railway variables set \
+  GOOGLE_OAUTH_CLIENT_JSON="$(cat /absolute/path/to/credentials.json)" \
+  GOOGLE_OAUTH_TOKEN_JSON="$(cat /absolute/path/to/token.json)"
+```
+
+## Database
+
+- The SQLite file `web-app/image_metadata.db` is checked into the repo for deployment convenience.
+- Server logs print the DB path at boot; the app reads from `/app/web-app/image_metadata.db` in the container.
+
+## Thumbnails and Downloads
+
+- Thumbnails are generated on demand and cached in `/app/web-app/thumbnails/` (ephemeral per deployment on Railway).
+- Full-size downloads stream from Google Drive and are cached at `/app/web-app/downloads/` during the container lifetime.
+
+## HTTPS
+
+- Railway provides HTTPS on `*.up.railway.app`. We force redirect HTTP→HTTPS in production.
+- Custom domains and managed certificates can be configured in the Railway dashboard.
+
+## Health Check
+
+- `/api/health` returns process memory, system totals, env, and uptime.
+
+## Logs and Redeploys
+
+```bash
+railway logs -f
+railway up
+```
+
+---
+
+## Archived: DigitalOcean (legacy)
+The previous Docker Compose + Nginx deployment remains in `web-app/docker-compose.production.yml` and `web-app/DEPLOYMENT.md` history. We no longer maintain that path. See the root `DEPLOYMENT_GUIDE.md` for the original steps if needed.
 
 ## Git Workflow
 

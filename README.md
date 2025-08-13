@@ -1,6 +1,6 @@
-# Google Drive Image Processor
+# Lost Valley Image Manager
 
-An automated batch processing system that discovers, analyzes, and catalogs media files from Google Drive using local AI vision models. Built specifically for permaculture communities to transform poorly organized collections of thousands of images and videos into a searchable, well-categorized asset library.
+Full-stack app that discovers, analyzes, and catalogs media files from Google Drive with AI metadata, and serves a searchable gallery. Production runs on Railway.
 
 ## Features
 
@@ -24,34 +24,28 @@ An automated batch processing system that discovers, analyzes, and catalogs medi
 
 ## Requirements
 
-- Python 3.9+
-- macOS (darwin platform)
-- LM Studio with Gemma-3-4b-it-qat model running on http://127.0.0.1:1234
-- Google Drive API credentials
-- SQLite (included with Python)
+- Node 18+/22 (Railway provides runtime)
+- Google Drive credentials (service account recommended) or OAuth client+token
+- SQLite DB file (`web-app/image_metadata.db` checked in for convenience)
 
-## Project Structure
+## Project Structure (high level)
 
-This project follows a spec-driven development approach. See `.kiro/specs/google-drive-image-processor/` for:
+- `web-app/client` – React + Tailwind frontend
+- `web-app/server` – Express API, thumbnails, downloads
+- `image_processor` – Python pipeline (offline processing)
+- `databases/` – DB snapshots (local); production uses `web-app/image_metadata.db`
 
-- `requirements.md` - Detailed feature requirements
-- `design.md` - Technical architecture and design decisions
-- `tasks.md` - Implementation plan with actionable coding tasks
+## Getting Started (Railway)
 
-## Getting Started
+1. Set Railway variables: `GOOGLE_SERVICE_ACCOUNT_JSON` (or OAuth vars)
+2. Deploy: `railway up`
+3. Visit your `*.up.railway.app` URL
 
-1. Set up your local environment with Python 3.9+
-2. Install and configure LM Studio with Gemma-3-4b-it-qat model
-3. Obtain Google Drive API credentials
-4. Follow the implementation tasks in `.kiro/specs/google-drive-image-processor/tasks.md`
+## Development
 
-## Development Approach
-
-This project uses a "crawl, walk, run" implementation strategy:
-
-1. **Crawl**: Basic proof of concept with core pipeline
-2. **Walk**: Robust local system with full feature set
-3. **Run**: Optimized system with advanced search and management features
+- Frontend dev: `cd web-app/client && npm start`
+- API dev: `cd web-app && npm run server`
+- Combined dev: `cd web-app && npm run dev`
 
 ## License
 

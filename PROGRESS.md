@@ -342,8 +342,8 @@ ssh -i ~/.ssh/id_ed25519_digitalocean root@134.199.214.90
   - Server: index.js with authentication middleware and login endpoint
   - API client: client.ts with request/response interceptors
 
-### Current Deployment Status ⚠️
-**Production deployment in progress** - needs completion:
+### Current Deployment Status ✅
+**Production is now on Railway** — fast, stable, and simple.
 
 #### ✅ Completed Steps:
 1. **SSH Access**: Connected to DigitalOcean droplet (root@134.199.214.90)
@@ -351,14 +351,10 @@ ssh -i ~/.ssh/id_ed25519_digitalocean root@134.199.214.90
 3. **Dependencies**: npm install completed on both server and client directories
 4. **Container Status**: Docker containers running (lost-valley-app, lost-valley-nginx)
 
-#### ✅ **DEPLOYMENT SUCCESS!**
-**Full password protection system deployed to production** with HTTPS SSL security:
-
-**Live Site**: https://fotos.lostvalley.org
-- ✅ **Password Protection Active**: Login form requires password `LV81868LV`
-- ✅ **HTTPS with SSL Certificate**: Let's Encrypt certificate configured
-- ✅ **Secure Image Loading**: All images served through authenticated API requests
-- ✅ **Production Ready**: Docker containers stable and healthy
+#### ✅ **RAILWAY DEPLOYMENT SUCCESS**
+- Live Railway app: project service URL (`*.up.railway.app`)
+- HTTPS enforced via proxy redirect
+- Authenticated downloads and on-demand thumbnails working
 
 #### 🔧 **Final Deployment Steps Completed**:
 1. **Docker Container Rebuild**: ✅
@@ -377,12 +373,15 @@ ssh -i ~/.ssh/id_ed25519_digitalocean root@134.199.214.90
    - Authenticated image loading: Working perfectly ✅
    - Live site: https://fotos.lostvalley.org fully functional ✅
 
-### Technical Architecture Decisions ✅
+### Technical Architecture Decisions ✅ (Updated)
 - **Rejected URL-based auth**: Avoided putting passwords in image URLs (security risk)
 - **Chosen header-based auth**: Clean separation with `x-password` headers
 - **Component-based security**: AuthenticatedImage handles secure image loading
 - **localStorage persistence**: User-friendly session management
 - **Middleware ordering**: Critical fix for Express.js authentication flow
+- **Railway build**: Nixpacks builds client and starts server per `railway.toml` / `.nixpacks.toml`
+- **DB shipping**: `web-app/image_metadata.db` checked in to ensure table availability
+- **Blob downloads**: Client fetches `/api/download/:id` and saves via blob; server caches originals
 
 ---
 *Last Updated: August 11, 2025*
