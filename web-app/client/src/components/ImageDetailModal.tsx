@@ -70,8 +70,25 @@ export function ImageDetailModal({
 
   const getDriveViewUrl = (fileId: string) =>
     `https://drive.google.com/file/d/${fileId}/view`;
-  const getDriveDownloadUrl = (fileId: string) =>
-    `https://drive.google.com/uc?id=${fileId}`;
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(`/api/download/${image.drive_file_id}`, {
+        headers: { 'x-password': localStorage.getItem('lv-password') || '' }
+      });
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = image.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error', err);
+    }
+  };
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -125,15 +142,9 @@ export function ImageDetailModal({
 
               {/* Action Buttons */}
               <div className="flex gap-2 mb-4">
-                <Button size="sm" className="flex-1" asChild>
-                  <a
-                    href={getDriveDownloadUrl(image.drive_file_id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Download className="w-3 h-3 mr-1" />
-                    Download
-                  </a>
+                <Button size="sm" className="flex-1" onClick={handleDownload}>
+                  <Download className="w-3 h-3 mr-1" />
+                  Download
                 </Button>
                 <Button variant="outline" size="sm" className="flex-1" asChild>
                   <a
