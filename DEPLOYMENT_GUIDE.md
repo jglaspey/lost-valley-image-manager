@@ -1,13 +1,19 @@
 # Lost Valley Image Manager - Deployment Guide (Railway)
 
-We have migrated production to Railway. The DigitalOcean droplet process below is archived.
+✅ **Production is now live on Railway** - fast, stable, and simple.
 
 ## 📋 Prerequisites
 - Railway account and CLI
 - GitHub repository access
 - Google Drive credentials (service account recommended)
 
-## 🚀 Railway Deployment
+## 🚀 Railway Deployment (Current Production)
+
+### Database Architecture
+The application uses a single standardized database:
+- **Production database**: `web-app/image_metadata.db` (3,621 files, 200 processed images)
+- **Database path**: `./image_metadata.db` (relative to web-app directory)
+- **Schema**: Includes tables for files, metadata, activity_tags, processing_history, metadata_versions
 
 ### Configure variables
 Use one of the two auth modes.
@@ -26,7 +32,7 @@ railway variables set \
 
 Optional app vars:
 ```bash
-railway variables set LV_PASSWORD="your-password"
+railway variables set LV_PASSWORD="LV81868LV"
 ```
 
 ### Deploy
@@ -35,14 +41,32 @@ git add -A && git commit -m "deploy" && git push
 railway up
 ```
 
-### Verify
-- Open the deployment URL (`*.up.railway.app`)
-- Check `/api/health`
-- Watch logs: `railway logs -f`
+### Local Development Setup
+For local development, ensure proper database configuration:
+```bash
+# From web-app directory
+DATABASE_PATH=./image_metadata.db npm start
+```
 
-### Notes
-- We force HTTPS redirect in production.
-- Thumbnails and original downloads are cached on disk inside the container and persist only for the lifetime of a deployment.
+### Verify Deployment
+- ✅ Open the deployment URL (`*.up.railway.app`)
+- ✅ Check `/api/health` - should show healthy status
+- ✅ Test `/api/stats` - should show 3,621 files with authentication
+- ✅ Watch logs: `railway logs -f`
+
+### Recent Fixes (August 2025)
+- ✅ Standardized database path for local/remote consistency
+- ✅ Fixed TypeScript compilation errors
+- ✅ Resolved database connection issues
+- ✅ Implemented proper authentication middleware
+- ✅ Successfully deployed with full functionality
+
+### Production Features
+- HTTPS enforced via Railway proxy redirect
+- Password authentication (`LV81868LV`)
+- Authenticated image downloads and on-demand thumbnails
+- Single database architecture (no switching complexity)
+- Real-time API statistics and health monitoring
 
 ---
 

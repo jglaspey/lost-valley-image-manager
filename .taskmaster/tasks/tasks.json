@@ -885,7 +885,7 @@
             "description": "Delete the `DatabasePicker.jsx` component and remove all references to it from the application, simplifying the UI to use a single, non-selectable database.",
             "dependencies": [],
             "details": "Locate and delete `web-app/src/components/DatabasePicker.jsx`. Edit `web-app/src/App.jsx` and any other parent components to remove the import and usage of `DatabasePicker`. Remove any state management logic (e.g., `useState` hooks) related to the selected database.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Run the frontend development server (`npm run dev`) and verify the application loads without errors and that no database selection UI is visible."
           },
           {
@@ -997,11 +997,24 @@
             "testStrategy": ""
           }
         ]
+      },
+      {
+        "id": 16,
+        "title": "Production Monitoring and Health Check Implementation",
+        "description": "Implement comprehensive monitoring, logging, and health check endpoints for the Railway-deployed Lost Valley Image Manager to ensure production stability and observability.",
+        "details": "Building on the successful Railway deployment, implement production-grade monitoring: 1. Create a `/health` endpoint in `web-app/server/` that checks database connectivity, file system access, and returns system status with response times. 2. Add structured logging using a library like Winston, replacing console.log statements with proper log levels (info, warn, error) and JSON formatting for better Railway log parsing. 3. Implement error tracking middleware that captures unhandled exceptions and API errors, logging them with request context (user agent, IP, endpoint). 4. Add performance monitoring by tracking API response times and database query durations. 5. Create a `/metrics` endpoint exposing key metrics like total images processed, API request counts, error rates, and database size. 6. Implement graceful shutdown handling for Railway deployments, ensuring database connections are properly closed. 7. Add environment-specific configuration management to handle Railway's environment variables properly. 8. Create alerting logic that can detect critical issues like database corruption, disk space issues, or repeated API failures.",
+        "testStrategy": "Deploy the monitoring features to Railway and verify: 1. The `/health` endpoint returns 200 with proper JSON structure including database status and response times. 2. Structured logs appear correctly in Railway's log viewer with proper timestamps and levels. 3. Trigger an intentional error and confirm it's logged with full context. 4. Load test the `/metrics` endpoint to ensure it responds quickly with accurate data. 5. Test graceful shutdown by redeploying and confirming no database corruption occurs. 6. Monitor Railway logs for 24 hours to ensure no unexpected errors or performance degradation. 7. Verify that all 3,621 files and 200 processed images remain accessible and functional after monitoring implementation.",
+        "status": "done",
+        "dependencies": [
+          14
+        ],
+        "priority": "high",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-13T05:36:33.341Z",
-      "updated": "2025-08-13T05:36:33.341Z",
+      "updated": "2025-08-13T21:08:12.477Z",
       "description": "Tasks for project-final-polish context"
     }
   }
