@@ -12,7 +12,6 @@ const searchRoutes = require('./routes/search');
 const statsRoutes = require('./routes/stats');
 const thumbnailRoutes = require('./routes/thumbnails');
 const downloadRoutes = require('./routes/download');
-const databaseRoutes = require('./routes/databases');
 const { createPlaceholder } = require('./utils/placeholder');
 
 const app = express();
@@ -116,7 +115,6 @@ app.use('/api/search', searchRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/thumbnails', thumbnailRoutes);
 app.use('/api/download', downloadRoutes);
-app.use('/api/databases', databaseRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

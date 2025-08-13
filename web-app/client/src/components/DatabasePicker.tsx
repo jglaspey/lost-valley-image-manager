@@ -23,7 +23,13 @@ interface DatabasePickerProps {
   isAuthenticated?: boolean;
 }
 
-export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange, isAuthenticated = false }) => {
+// Deprecated component kept temporarily to avoid import errors during refactors
+export const DatabasePicker: React.FC<DatabasePickerProps> = () => {
+  return null;
+};
+/*
+Previous implementation supported switching between multiple SQLite files.
+We now deploy a single canonical database on Railway.
   const [selectedDb, setSelectedDb] = useState<string>('');
   const queryClient = useQueryClient();
 
@@ -126,3 +132,4 @@ export const DatabasePicker: React.FC<DatabasePickerProps> = ({ onDatabaseChange
     </div>
   );
 };
+*/
