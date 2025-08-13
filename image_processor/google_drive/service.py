@@ -119,7 +119,7 @@ class GoogleDriveService:
                     list_params = {
                         'q': query,
                         'pageSize': self.config.batch_size,
-                        'fields': "nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime, parents)",
+                        'fields': "nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime, parents, description, owners(displayName,emailAddress), lastModifyingUser(displayName,emailAddress), imageMediaMetadata(width,height,cameraMake,cameraModel), videoMediaMetadata(width,height,durationMillis))",
                         'pageToken': page_token
                     }
                     
@@ -182,12 +182,12 @@ class GoogleDriveService:
         try:
             get_params = {
                 'fileId': file_id,
-                'fields': "id, name, mimeType, size, createdTime, modifiedTime, parents"
+                'fields': "id, name, mimeType, size, createdTime, modifiedTime, parents, description, owners(displayName,emailAddress), lastModifyingUser(displayName,emailAddress), imageMediaMetadata(width,height,cameraMake,cameraModel), videoMediaMetadata(width,height,durationMillis)",
+                'supportsAllDrives': True
             }
             
             # Add shared drive support if needed
-            if shared_drive_id:
-                get_params['supportsAllDrives'] = True
+            # Always include supportsAllDrives; it's harmless for non-shared files and required for shared drives
             
             file_info = self.service.files().get(**get_params).execute()
             
@@ -295,6 +295,35 @@ class GoogleDriveService:
         else:
             modified_date = created_date
         
+        # Derive creator
+        creator = None
+        try:
+            owners = file_data.get('owners') or []
+            if owners and isinstance(owners, list):
+                owner0 = owners[0]
+                creator = owner0.get('displayName') or owner0.get('emailAddress')
+            if not creator:
+                last_user = file_data.get('lastModifyingUser') or {}
+                creator = last_user.get('displayName') or last_user.get('emailAddress')
+        except Exception:
+            creator = None
+
+        # Dimensions from Drive metadata if available
+        width = None
+        height = None
+        try:
+            img_meta = file_data.get('imageMediaMetadata') or {}
+            vid_meta = file_data.get('videoMediaMetadata') or {}
+            width = img_meta.get('width') or vid_meta.get('width')
+            height = img_meta.get('height') or vid_meta.get('height')
+            if width is not None:
+                width = int(width)
+            if height is not None:
+                height = int(height)
+        except Exception:
+            width = width or None
+            height = height or None
+
         return MediaFile(
             drive_file_id=file_data['id'],
             filename=file_data['name'],
@@ -303,6 +332,10 @@ class GoogleDriveService:
             mime_type=file_data['mimeType'],
             created_date=created_date,
             modified_date=modified_date,
+            width=width,
+            height=height,
+            creator=creator,
+            description=file_data.get('description'),
             processing_status=ProcessingStatus.PENDING
         )
     

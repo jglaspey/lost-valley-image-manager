@@ -26,6 +26,8 @@ class MediaFile:
     modified_date: datetime
     width: Optional[int] = None
     height: Optional[int] = None
+    creator: Optional[str] = None
+    description: Optional[str] = None
     processing_status: ProcessingStatus = ProcessingStatus.PENDING
     processed_at: Optional[datetime] = None
     thumbnail_path: Optional[str] = None
@@ -49,7 +51,7 @@ class ExtractedMetadata:
     time_of_day: Optional[str] = None  # 'morning', 'midday', 'evening', 'unclear'
     mood_energy: Optional[str] = None
     color_palette: Optional[str] = None
-    notes: Optional[str] = None  # Combined insights from filename, path, and context analysis
+    notes: Optional[str] = None  # File Path Notes (derived from filename/folders)
     extracted_at: Optional[datetime] = None
     file_id: Optional[int] = None  # Foreign key to files table
 

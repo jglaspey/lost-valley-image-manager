@@ -4,11 +4,13 @@ import click
 import logging
 from pathlib import Path
 import sys
+import os
 
 from ..core.config import Config
 from ..database import DatabaseConnection, FileRepository
 from ..google_drive import GoogleDriveAuth, GoogleDriveService
 from ..vision import VisionAnalysisService
+from ..vision.together_client import TogetherVisionClient
 from ..utils.logging import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,24 @@ def cli(ctx, config_path, verbose):
     # Setup logging
     log_level = logging.DEBUG if verbose else logging.INFO
     setup_logging(log_level)
+    # Load environment variables from .env if present (without requiring python-dotenv)
+    try:
+        from dotenv import load_dotenv  # type: ignore
+        load_dotenv()
+    except Exception:
+        env_path = Path('.env')
+        if env_path.exists():
+            try:
+                for raw in env_path.read_text().splitlines():
+                    line = raw.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    key, val = line.split('=', 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    os.environ.setdefault(key, val)
+            except Exception:
+                pass
     
     # Store config in context
     ctx.ensure_object(dict)
@@ -248,6 +268,114 @@ def show_file(ctx, file_id):
 
 
 @cli.command()
+@click.option('--limit', type=int, default=10, help='How many most-recent completed files to list')
+@click.pass_context
+def list_recent(ctx, limit):
+    """List recently processed files with their database IDs."""
+    config = load_config(ctx, check_credentials=False)
+    try:
+        db_connection = DatabaseConnection(config.database)
+        with db_connection.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT id, filename, processed_at
+                FROM files
+                WHERE processing_status='completed'
+                ORDER BY processed_at DESC
+                LIMIT ?
+                """,
+                (limit,)
+            )
+            rows = cur.fetchall()
+            if not rows:
+                click.echo("No completed files yet.")
+                return
+            click.echo("ID\tProcessed At\tFilename")
+            for row in rows:
+                click.echo(f"{row[0]}\t{row[2]}\t{row[1]}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--limit', type=int, default=10, help='How many most-recent completed files to export')
+@click.option('--output', type=click.Path(), default='llm_results.json', help='Path to write JSON results')
+@click.pass_context
+def export_results(ctx, limit, output):
+    """Export recent LLM results to a JSON file (file info + extracted metadata)."""
+    import json as _json
+    from pathlib import Path as _P
+    config = load_config(ctx, check_credentials=False)
+    try:
+        db = DatabaseConnection(config.database)
+        file_repo = FileRepository(db)
+        from ..database import MetadataRepository, ActivityTagRepository
+        metadata_repo = MetadataRepository(db)
+        tag_repo = ActivityTagRepository(db)
+
+        with db.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT id, filename, drive_file_id, file_path, mime_type, created_date, modified_date,
+                       width, height, creator, description, processed_at
+                FROM files
+                WHERE processing_status='completed'
+                ORDER BY processed_at DESC
+                LIMIT ?
+                """,
+                (limit,)
+            )
+            rows = cur.fetchall()
+
+        results = []
+        for row in rows:
+            file_id = row[0]
+            meta = metadata_repo.get_by_file_id(file_id)
+            tags = tag_repo.get_tags(file_id)
+            results.append({
+                'file': {
+                    'id': file_id,
+                    'filename': row[1],
+                    'drive_file_id': row[2],
+                    'path': row[3],
+                    'mime_type': row[4],
+                    'created_date': str(row[5]),
+                    'modified_date': str(row[6]),
+                    'width': row[7],
+                    'height': row[8],
+                    'creator': row[9],
+                    'description': row[10],
+                    'processed_at': str(row[11]),
+                },
+                'metadata': None if not meta else {
+                    'primary_subject': meta.primary_subject,
+                    'visual_quality': meta.visual_quality,
+                    'has_people': meta.has_people,
+                    'people_count': meta.people_count,
+                    'is_indoor': meta.is_indoor,
+                    'social_media_score': meta.social_media_score,
+                    'social_media_reason': meta.social_media_reason,
+                    'marketing_score': meta.marketing_score,
+                    'marketing_use': meta.marketing_use,
+                    'activity_tags': tags,
+                    'season': meta.season,
+                    'time_of_day': meta.time_of_day,
+                    'mood_energy': meta.mood_energy,
+                    'color_palette': meta.color_palette,
+                    'file_path_notes': meta.notes,
+                    'extracted_at': str(meta.extracted_at),
+                }
+            })
+
+        _P(output).write_text(_json.dumps(results, indent=2))
+        click.echo(f"✓ Exported {len(results)} records to {output}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+@cli.command()
 @click.pass_context
 def init_db(ctx):
     """Initialize the database schema."""
@@ -287,8 +415,12 @@ def test_vision(ctx):
 @cli.command()
 @click.option('--limit', '-l', type=int, help='Limit number of files to process')
 @click.option('--file-id', type=int, help='Process specific file by database ID')
+@click.option('--ab-compare', is_flag=True, help='Run A/B across two Together models and export JSON for comparison')
+@click.option('--model-a', type=str, default='meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo', help='Together model A')
+@click.option('--model-b', type=str, default='Qwen/Qwen2.5-VL-72B-Instruct', help='Together model B')
+@click.option('--export', type=click.Path(), default='together_ab_results.json', help='Output JSON file for A/B')
 @click.pass_context
-def process(ctx, limit, file_id):
+def process(ctx, limit, file_id, ab_compare, model_a, model_b, export):
     """Process pending files with vision analysis."""
     config = load_config(ctx, check_credentials=True)
     
@@ -296,6 +428,58 @@ def process(ctx, limit, file_id):
         click.echo("Initializing vision analysis service...")
         vision_service = VisionAnalysisService(config)
         
+        if ab_compare:
+            # A/B evaluate N images using Together AI on two models; export merged JSON
+            from ..database import FileRepository
+            config = load_config(ctx, check_credentials=True)
+            db = DatabaseConnection(config.database)
+            file_repo = FileRepository(db)
+            # Fetch a larger window then take the first N images to avoid selecting videos
+            window = max(200, (limit or 10) * 5)
+            candidates = file_repo.get_pending_files(window)
+            files = [f for f in candidates if str(f.mime_type).startswith('image/')][: (limit or 10)]
+            tvc = TogetherVisionClient(max_tokens=config.vision_model.max_tokens, max_retries=config.vision_model.max_retries)
+
+            results = []
+            import time as _t
+            for f in files:
+                if not f.mime_type.startswith('image/'):
+                    continue
+                image_bytes = GoogleDriveService(config.google_drive, GoogleDriveAuth(config.google_drive.credentials_path)).download_file(f.drive_file_id)
+                a = None
+                b = None
+                a_err = None
+                b_err = None
+                try:
+                    a = tvc.analyze_image(image_bytes, f.filename, f.file_path, model_a)
+                except Exception as e:
+                    a_err = str(e)
+                # small delay to avoid hammering endpoint
+                _t.sleep(0.5)
+                try:
+                    b = tvc.analyze_image(image_bytes, f.filename, f.file_path, model_b)
+                except Exception as e:
+                    b_err = str(e)
+                results.append({
+                    'file': {
+                        'id': f.id,
+                        'drive_file_id': f.drive_file_id,
+                        'filename': f.filename,
+                        'path': f.file_path
+                    },
+                    'model_a': model_a,
+                    'result_a': a,
+                    'error_a': a_err,
+                    'model_b': model_b,
+                    'result_b': b,
+                    'error_b': b_err
+                })
+            import json
+            from pathlib import Path as _P
+            _P(export).write_text(json.dumps(results, indent=2))
+            click.echo(f"✓ Wrote A/B results for {len(results)} images to {export}")
+            return
+
         if file_id:
             # Process specific file
             click.echo(f"Processing file ID {file_id}...")
@@ -356,6 +540,183 @@ def reprocess_failed(ctx, limit):
         logger.exception("Reprocessing failed")
         sys.exit(1)
 
+
+@cli.command()
+@click.pass_context
+def repair_schema(ctx):
+    """Repair database schema by adding any missing columns/tables for v4."""
+    config = load_config(ctx, check_credentials=False)
+
+    try:
+        db_connection = DatabaseConnection(config.database)
+        with db_connection.get_connection() as conn:
+            cur = conn.cursor()
+
+            # Ensure files table has required columns
+            cur.execute("PRAGMA table_info(files)")
+            cols = {row[1] for row in cur.fetchall()}
+            added = []
+
+            if 'width' not in cols:
+                cur.execute("ALTER TABLE files ADD COLUMN width INTEGER")
+                added.append('width')
+            if 'height' not in cols:
+                cur.execute("ALTER TABLE files ADD COLUMN height INTEGER")
+                added.append('height')
+            if 'creator' not in cols:
+                cur.execute("ALTER TABLE files ADD COLUMN creator TEXT")
+                added.append('creator')
+            if 'description' not in cols:
+                cur.execute("ALTER TABLE files ADD COLUMN description TEXT")
+                added.append('description')
+
+            # Ensure metadata_versions table exists
+            cur.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS metadata_versions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+                    version INTEGER NOT NULL,
+                    data_json TEXT NOT NULL,
+                    edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    edited_by TEXT,
+                    UNIQUE(file_id, version)
+                );
+                CREATE INDEX IF NOT EXISTS idx_versions_file_id ON metadata_versions(file_id);
+                """
+            )
+
+            # Ensure metadata table has file_path_notes column (migration from notes)
+            cur.execute("PRAGMA table_info(metadata)")
+            mcols = {row[1] for row in cur.fetchall()}
+            if 'file_path_notes' not in mcols:
+                cur.execute("ALTER TABLE metadata ADD COLUMN file_path_notes TEXT")
+                # Backfill from legacy 'notes' if present
+                if 'notes' in mcols:
+                    try:
+                        cur.execute("UPDATE metadata SET file_path_notes = COALESCE(file_path_notes, notes)")
+                    except Exception:
+                        pass
+
+            # Ensure schema_version table exists and record v4
+            cur.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+            cur.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (?)", (4,))
+
+            msg = "Schema repair complete. Added: " + (", ".join(added) if added else "nothing")
+            click.echo(msg)
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        logger.exception("Schema repair failed")
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--include-videos', is_flag=True, help='Also reset non-image files (videos/others).')
+@click.pass_context
+def reset_status(ctx, include_videos):
+    """Reset processing status to pending for files (images by default)."""
+    config = load_config(ctx, check_credentials=False)
+
+    try:
+        db_connection = DatabaseConnection(config.database)
+        with db_connection.get_connection() as conn:
+            cur = conn.cursor()
+            if include_videos:
+                cur.execute("UPDATE files SET processing_status='pending', processed_at=NULL, error_message=NULL")
+                updated = cur.rowcount
+            else:
+                cur.execute("UPDATE files SET processing_status='pending', processed_at=NULL, error_message=NULL WHERE mime_type LIKE 'image%'")
+                updated = cur.rowcount
+        click.echo(f"Reset processing status to 'pending' for {updated} files.")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        logger.exception("Reset status failed")
+        sys.exit(1)
+
+@cli.command()
+@click.option('--batch-size', type=int, default=100, help='Number of files per backfill batch')
+@click.option('--resume-from-id', type=int, default=0, help='Resume backfill after this file id')
+@click.option('--limit', type=int, default=0, help='Stop after updating this many files (0 = no limit)')
+@click.pass_context
+def backfill_drive_metadata(ctx, batch_size, resume_from_id, limit):
+    """Backfill missing creator/description/dimensions from Google Drive for existing files."""
+    config = load_config(ctx, check_credentials=True)
+
+    try:
+        click.echo("Initializing Drive backfill...")
+        auth = GoogleDriveAuth(config.google_drive.credentials_path)
+        drive_service = GoogleDriveService(config.google_drive, auth)
+
+        db_connection = DatabaseConnection(config.database)
+        file_repo = FileRepository(db_connection)
+
+        updated = 0
+        last_id = resume_from_id
+
+        while True:
+            batch = file_repo.get_missing_drive_fields_batch(last_id=last_id, batch_size=batch_size)
+            if not batch:
+                break
+
+            click.echo(f"Processing batch starting after id {last_id} (size={len(batch)})...")
+
+            for media_file in batch:
+                try:
+                    # Fetch fresh file info from Drive
+                    info = drive_service._get_file_info(media_file.drive_file_id)
+                    if not info:
+                        continue
+
+                    # Build derived fields similar to discover path
+                    # Creator
+                    creator = None
+                    owners = (info.get('owners') or []) if isinstance(info.get('owners'), list) else []
+                    if owners:
+                        owner0 = owners[0]
+                        creator = owner0.get('displayName') or owner0.get('emailAddress')
+                    if not creator:
+                        last_user = info.get('lastModifyingUser') or {}
+                        creator = last_user.get('displayName') or last_user.get('emailAddress')
+
+                    description = info.get('description')
+
+                    # Dimensions
+                    width = None
+                    height = None
+                    img_meta = info.get('imageMediaMetadata') or {}
+                    vid_meta = info.get('videoMediaMetadata') or {}
+                    width = img_meta.get('width') or vid_meta.get('width')
+                    height = img_meta.get('height') or vid_meta.get('height')
+                    try:
+                        width = int(width) if width is not None else None
+                        height = int(height) if height is not None else None
+                    except Exception:
+                        width = None if width is None else width
+                        height = None if height is None else height
+
+                    # Update DB (only fill missing using COALESCE inside repo)
+                    file_repo.update_drive_metadata(media_file.id, creator, description, width, height)
+
+                    updated += 1
+                    last_id = media_file.id
+
+                    if limit and updated >= limit:
+                        click.echo(f"Reached limit {limit}, stopping.")
+                        click.echo(f"Updated {updated} files. Last processed id: {last_id}")
+                        return
+
+                except Exception as e:
+                    logger.warning(f"Backfill error for file id {media_file.id}: {e}")
+                    last_id = media_file.id
+                    continue
+
+        click.echo(f"Backfill complete. Updated {updated} files. Last processed id: {last_id}")
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        logger.exception("Backfill failed")
+        sys.exit(1)
 
 if __name__ == '__main__':
     cli()

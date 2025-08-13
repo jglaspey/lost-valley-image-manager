@@ -89,19 +89,15 @@ class ClaudeVisionClient:
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 
-                # Resize if too large (Claude handles up to 1568px on long edge well)
-                max_size = 1568
+                # Resize if too large (use smaller long edge to cut latency/cost)
+                max_size = 512
                 if max(img.size) > max_size:
                     img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
                 
-                # Convert to appropriate format
+                # Re-encode to compact JPEG for transmission
                 buffer = BytesIO()
-                if original_format in ['PNG']:
-                    img.save(buffer, format='PNG', optimize=True)
-                    media_type = "image/png"
-                else:
-                    img.save(buffer, format='JPEG', quality=85, optimize=True)
-                    media_type = "image/jpeg"
+                img.save(buffer, format='JPEG', quality=80, optimize=True, progressive=True)
+                media_type = "image/jpeg"
                 
                 image_bytes = buffer.getvalue()
                 
@@ -127,40 +123,33 @@ class ClaudeVisionClient:
         """
         Pass 1: Visual analysis only - what do you see?
         """
-        prompt = f"""Analyze this image and provide a JSON response with ONLY visual observations:
-
-{{
-  "primary_subject": "Brief description of the main focus (1-2 sentences)",
-  "has_people": false,
-  "people_count": "none",
-  "is_indoor": false,
-  "activity_tags": ["landscape"],
-  "season": "unclear",
-  "time_of_day": "unclear",
-  "mood_energy": "overall feeling or energy of the image",
-  "color_palette": "dominant colors and color mood",
-  "notes": "Additional insights from filename and file path context"
-}}
-
-File context:
-- Filename: {filename}
-- File path: {file_path or filename}
-
-INSTRUCTIONS:
-- has_people: boolean true or false
-- people_count: must be one of: "none", "1-2", "3-5", "6-10", "10+"
-- is_indoor: boolean true or false  
-- activity_tags: array of strings, select all that apply from: gardening, harvesting, education, construction, maintenance, cooking, celebration, children, animals, landscape, tools, produce
-- season: must be one of: "spring", "summer", "fall", "winter", "unclear"
-- time_of_day: must be one of: "morning", "midday", "evening", "unclear"
-- mood_energy: describe the feeling (e.g., "peaceful and serene", "vibrant and energetic")
-- color_palette: describe dominant colors (e.g., "warm earth tones", "cool blues and greens")
-- notes: extract insights about source, context, dates from filename/folder structure
-
-Focus only on what you can clearly observe. No quality judgments or scoring."""
+        prompt = (
+            "Return EXACTLY one JSON object and nothing else. No prose, no markdown.\n\n"
+            "{\n"
+            "  \"primary_subject\": \"1–3 sentence description\",\n"
+            "  \"has_people\": false,\n"
+            "  \"people_count\": \"none|1-2|3-5|6-10|10+\",\n"
+            "  \"is_indoor\": false,\n"
+            "  \"activity_tags\": [\"gardening\",\"harvesting\",\"education\",\"construction\",\"maintenance\",\"cooking\",\"celebration\",\"children\",\"animals\",\"landscape\",\"tools\",\"produce\"],\n"
+            "  \"season\": \"spring|summer|fall|winter|unclear\",\n"
+            "  \"time_of_day\": \"morning|midday|evening|unclear\",\n"
+            "  \"mood_energy\": \"short phrase\",\n"
+            "  \"color_palette\": \"short phrase\",\n"
+            "  \"file_path_notes\": \"≤320 chars. Focus only on the file path - Extract helpful context you can infer with high confidence from the filename and folder names (e.g., people and names, events, location, date, project, camera, series). Prefer concise phrases; include multiple clues if present. Avoid speculation beyond the path.\"\n"
+            "}\n\n"
+            "Rules:\n"
+            "- Choose only from the allowed values.\n"
+            "- If uncertain, use \"unclear\" or a conservative false/none.\n"
+            "- Do NOT include any extra keys or text.\n\n"
+            f"File context:\n- Filename: {filename}\n- Path: {file_path or filename}"
+        )
 
         response = self._make_request(image_b64, media_type, prompt)
-        return self._parse_visual_response(response, filename)
+        data = self._parse_visual_response(response, filename)
+        # Ensure types are valid to reduce downstream warnings
+        data = self._normalize_metadata(data)
+        data = self._validate_metadata(data, filename, pass_type="visual")
+        return data
 
     def _pass2_critical_scoring(self, image_b64: str, media_type: str, filename: str, visual_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -176,46 +165,29 @@ Time: {visual_data.get('time_of_day', 'unclear')}
 Mood: {visual_data.get('mood_energy', 'Unknown')}
 Colors: {visual_data.get('color_palette', 'Unknown')}"""
 
-        prompt = f"""You are a CRITICAL evaluator for a permaculture education center's image library. Looking at this image and the analysis below, provide STRICT scoring:
-
-{visual_summary}
-
-Return JSON with these 3 scores:
-{{
-  "visual_quality": 3,
-  "social_media_score": 3,
-  "marketing_score": 3,
-  "social_media_reason": "One sentence explaining social media score",
-  "marketing_use": "Best professional use case for this image"
-}}
-
-CRITICAL SCORING GUIDELINES:
-
-**Visual Quality (technical assessment):**
-- 5: Portfolio-worthy (perfect focus, lighting, composition) - RARE, maybe 2-3% of photos
-- 4: Very good (minor flaws, professional looking) - Maybe 10-15% of photos  
-- 3: Good/decent (usable, some issues) - Common, 40-50% of photos
-- 2: Below average (noticeable problems) - 30-40% of photos
-- 1: Poor (out of focus, bad lighting, unusable) - 5-10% of photos
-
-**Social Media Score (engagement potential):**
-- 5: Viral potential (stunning, inspiring, highly shareable)
-- 4: Very engaging (clear story, emotional connection)
-- 3: Good content (decent engagement, clear message)
-- 2: Limited appeal (niche audience only)
-- 1: Poor engagement (confusing, boring, low quality)
-
-**Marketing Score (professional use value):**
-- 5: Premium marketing (could be in brochures, website headers)
-- 4: Professional use (good for newsletters, social posts)
-- 3: General use (fine for documentation, basic marketing)
-- 2: Limited use (internal only, low-key applications)
-- 1: Not recommended (quality/content issues)
-
-BE HARSH. Most permaculture photos are everyday documentation, not professional marketing material. Reserve 4s and 5s for truly exceptional images."""
+        prompt = (
+            "Return EXACTLY one JSON object and nothing else. No prose, no markdown.\n\n"
+            f"Context:\n{visual_summary}\n\n"
+            "Return:\n"
+            "{\n"
+            "  \"visual_quality\": 1|2|3|4|5,\n"
+            "  \"social_media_score\": 1|2|3|4|5,\n"
+            "  \"marketing_score\": 1|2|3|4|5,\n"
+            "  \"social_media_reason\": \"≤140 chars\",\n"
+            "  \"marketing_use\": \"≤140 chars\"\n"
+            "}\n\n"
+            "Guidelines (be harsh; 4–5 are rare):\n"
+            "- Visual quality: technical/composition quality only.\n"
+            "- Social media: engagement potential.\n"
+            "- Marketing: professional usage value.\n"
+            "No extra keys or text."
+        )
 
         response = self._make_request(image_b64, media_type, prompt)
-        return self._parse_scoring_response(response, filename)
+        data = self._parse_scoring_response(response, filename)
+        data = self._normalize_metadata(data)
+        data = self._validate_metadata(data, filename, pass_type="scoring")
+        return data
 
     def _make_request(self, image_b64: str, media_type: str, prompt: str) -> anthropic.types.Message:
         """
@@ -322,7 +294,7 @@ BE HARSH. Most permaculture photos are everyday documentation, not professional 
                 if pass_type == "visual":
                     required_fields = [
                         'primary_subject', 'has_people', 'people_count', 
-                        'is_indoor', 'activity_tags', 'notes'
+                        'is_indoor', 'activity_tags', 'file_path_notes'
                     ]
                 else:  # scoring
                     required_fields = [
@@ -335,7 +307,8 @@ BE HARSH. Most permaculture photos are everyday documentation, not professional 
                         logger.warning(f"Missing required field '{field}' in {pass_type} response for {filename}")
                         metadata[field] = self._get_default_value(field)
                 
-                # Validate and clean values
+                # Normalize then validate values
+                metadata = self._normalize_metadata(metadata)
                 metadata = self._validate_metadata(metadata, filename, pass_type)
                 
                 return metadata
@@ -350,63 +323,143 @@ BE HARSH. Most permaculture photos are everyday documentation, not professional 
         except Exception as e:
             logger.error(f"Failed to parse Claude {pass_type} response for {filename}: {e}")
             return self._get_fallback_metadata(filename, pass_type)
+
+    def _normalize_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Coerce common type/format mistakes from the model into our schema."""
+        def to_bool(v):
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, (int, float)):
+                return bool(v)
+            if isinstance(v, str):
+                s = v.strip().lower()
+                if s in {"true", "yes", "y", "1"}:
+                    return True
+                if s in {"false", "no", "n", "0"}:
+                    return False
+            return False
+
+        def to_int_1_5(v):
+            try:
+                if isinstance(v, str):
+                    v = v.replace(" ", "")
+                    if "." in v:
+                        v = int(round(float(v)))
+                    else:
+                        v = int(v)
+                v = int(v)
+            except Exception:
+                return None
+            return max(1, min(5, v))
+
+        # Booleans
+        if 'has_people' in metadata:
+            metadata['has_people'] = to_bool(metadata.get('has_people'))
+        if 'is_indoor' in metadata:
+            metadata['is_indoor'] = to_bool(metadata.get('is_indoor'))
+
+        # Integer scores
+        for k in ['visual_quality', 'social_media_score', 'marketing_score']:
+            if k in metadata:
+                val = to_int_1_5(metadata.get(k))
+                if val is not None:
+                    metadata[k] = val
+
+        # People count normalization
+        if 'people_count' in metadata:
+            raw = str(metadata.get('people_count', '')).strip().lower()
+            s = raw.replace('–', '-').replace('—', '-').replace('to', '-').replace('people', '').replace('person', '').replace('persons', '').replace(' ', '')
+            mapping = {
+                '0': 'none', 'zero': 'none', 'none': 'none', 'noone': 'none', 'n/a': 'none', 'na': 'none',
+                '1': '1-2', '2': '1-2', '1-2': '1-2', '1or2': '1-2', 'oneortwo': '1-2',
+                '3': '3-5', '4': '3-5', '5': '3-5', '3-5': '3-5', '3or5': '3-5',
+                '6': '6-10', '7': '6-10', '8': '6-10', '9': '6-10', '10': '6-10', '6-10': '6-10',
+            }
+            metadata['people_count'] = mapping.get(s, '10+')
+
+        # Activity tags normalization
+        valid_tags = {
+            'gardening', 'harvesting', 'education', 'construction', 'maintenance', 'cooking',
+            'celebration', 'children', 'animals', 'landscape', 'tools', 'produce'
+        }
+        tags = metadata.get('activity_tags')
+        if isinstance(tags, str):
+            tags = [t.strip().lower() for t in tags.split(',') if t.strip()]
+        if isinstance(tags, list):
+            metadata['activity_tags'] = sorted({t for t in [str(x).lower() for x in tags] if t in valid_tags})
+
+        # Season normalization
+        if 'season' in metadata and isinstance(metadata['season'], str):
+            s = metadata['season'].strip().lower()
+            season_map = {
+                'spring': 'spring', 'summer': 'summer', 'fall': 'fall', 'autumn': 'fall',
+                'winter': 'winter', 'unclear': 'unclear', 'unknown': 'unclear'
+            }
+            metadata['season'] = season_map.get(s, 'unclear')
+
+        # Time of day normalization
+        if 'time_of_day' in metadata and isinstance(metadata['time_of_day'], str):
+            t = metadata['time_of_day'].strip().lower()
+            time_map = {
+                'morning': 'morning', 'sunrise': 'morning', 'dawn': 'morning',
+                'midday': 'midday', 'noon': 'midday', 'afternoon': 'midday',
+                'evening': 'evening', 'sunset': 'evening', 'dusk': 'evening', 'twilight': 'evening',
+                'unclear': 'unclear', 'unknown': 'unclear'
+            }
+            metadata['time_of_day'] = time_map.get(t, 'unclear')
+
+        # Rename notes->file_path_notes for backward compatibility
+        if 'file_path_notes' not in metadata and 'notes' in metadata:
+            metadata['file_path_notes'] = metadata['notes']
+        return metadata
     
     def _validate_metadata(self, metadata: Dict[str, Any], filename: str, pass_type: str = "combined") -> Dict[str, Any]:
-        """
-        Validate and clean metadata values.
-        
-        Args:
-            metadata: Raw metadata dictionary
-            filename: Original filename for logging
-            
-        Returns:
-            Cleaned metadata dictionary
-        """
-        # Validate visual_quality (1-5)
-        if not isinstance(metadata.get('visual_quality'), int) or not 1 <= metadata['visual_quality'] <= 5:
-            logger.warning(f"Invalid visual_quality for {filename}, using default")
-            metadata['visual_quality'] = 3
-        
-        # Validate people_count
-        valid_people_counts = ['none', '1-2', '3-5', '6-10', '10+']
-        if metadata.get('people_count') not in valid_people_counts:
-            logger.warning(f"Invalid people_count for {filename}, using default")
-            metadata['people_count'] = 'none' if not metadata.get('has_people') else '1-2'
-        
-        # Validate scores (1-5)
-        for score_field in ['social_media_score', 'marketing_score']:
-            if not isinstance(metadata.get(score_field), int) or not 1 <= metadata[score_field] <= 5:
-                logger.warning(f"Invalid {score_field} for {filename}, using default")
-                metadata[score_field] = 3
-        
-        # Validate boolean fields
-        for bool_field in ['has_people', 'is_indoor']:
-            if not isinstance(metadata.get(bool_field), bool):
-                logger.warning(f"Invalid {bool_field} for {filename}, using default")
-                metadata[bool_field] = False
-        
-        # Validate activity_tags
-        valid_tags = [
-            'gardening', 'harvesting', 'education', 'construction',
-            'maintenance', 'cooking', 'celebration', 'children',
-            'animals', 'landscape', 'tools', 'produce'
-        ]
-        
-        if not isinstance(metadata.get('activity_tags'), list):
-            metadata['activity_tags'] = []
-        else:
-            # Filter to valid tags only
-            metadata['activity_tags'] = [
-                tag for tag in metadata['activity_tags'] 
-                if tag in valid_tags
+        """Validate and clean metadata values (scoped to pass_type to avoid cross-pass defaults)."""
+        check_visual = pass_type in ("visual", "combined")
+        check_scoring = pass_type in ("scoring", "combined")
+
+        if check_scoring:
+            # Validate visual_quality (1-5)
+            if not isinstance(metadata.get('visual_quality'), int) or not 1 <= metadata['visual_quality'] <= 5:
+                logger.warning(f"Invalid visual_quality for {filename}, using default")
+                metadata['visual_quality'] = 3
+
+            # Validate scores (1-5)
+            for score_field in ['social_media_score', 'marketing_score']:
+                if not isinstance(metadata.get(score_field), int) or not 1 <= metadata[score_field] <= 5:
+                    logger.warning(f"Invalid {score_field} for {filename}, using default")
+                    metadata[score_field] = 3
+
+        if check_visual:
+            # Validate people_count bucket
+            valid_people_counts = ['none', '1-2', '3-5', '6-10', '10+']
+            if metadata.get('people_count') not in valid_people_counts:
+                logger.warning(f"Invalid people_count for {filename}, using default")
+                metadata['people_count'] = 'none' if not metadata.get('has_people') else '1-2'
+
+            # Validate boolean fields
+            for bool_field in ['has_people', 'is_indoor']:
+                if not isinstance(metadata.get(bool_field), bool):
+                    logger.warning(f"Invalid {bool_field} for {filename}, using default")
+                    metadata[bool_field] = False
+
+            # Validate activity_tags
+            valid_tags = [
+                'gardening', 'harvesting', 'education', 'construction',
+                'maintenance', 'cooking', 'celebration', 'children',
+                'animals', 'landscape', 'tools', 'produce'
             ]
-        
-        # Validate season if present
-        if metadata.get('season'):
-            valid_seasons = ['spring', 'summer', 'fall', 'winter', 'unclear']
-            if metadata['season'] not in valid_seasons:
-                metadata['season'] = 'unclear'
-        
+            if not isinstance(metadata.get('activity_tags'), list):
+                metadata['activity_tags'] = []
+            else:
+                metadata['activity_tags'] = [tag for tag in metadata['activity_tags'] if tag in valid_tags]
+
+            # Validate season if present
+            if metadata.get('season'):
+                valid_seasons = ['spring', 'summer', 'fall', 'winter', 'unclear']
+                if metadata['season'] not in valid_seasons:
+                    metadata['season'] = 'unclear'
+
         return metadata
     
     def _get_default_value(self, field: str) -> Any:

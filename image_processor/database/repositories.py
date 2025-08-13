@@ -26,8 +26,9 @@ class FileRepository:
         sql = """
             INSERT INTO files (
                 drive_file_id, filename, file_path, file_size, width, height,
-                mime_type, created_date, modified_date, processing_status, thumbnail_path
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                mime_type, created_date, modified_date, processing_status, thumbnail_path,
+                creator, description
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         cursor = self.db.execute(sql, (
@@ -41,7 +42,9 @@ class FileRepository:
             media_file.created_date,
             media_file.modified_date,
             media_file.processing_status.value,
-            media_file.thumbnail_path
+            media_file.thumbnail_path,
+            media_file.creator,
+            media_file.description
         ))
         
         return cursor.lastrowid
@@ -110,6 +113,19 @@ class FileRepository:
         """Update file dimensions."""
         sql = "UPDATE files SET width = ?, height = ? WHERE id = ?"
         self.db.execute(sql, (width, height, file_id))
+
+    def update_drive_metadata(self, file_id: int, creator: Optional[str], description: Optional[str],
+                               width: Optional[int], height: Optional[int]) -> None:
+        """Update Drive-derived metadata for a file in a single statement."""
+        sql = """
+            UPDATE files SET
+                creator = COALESCE(?, creator),
+                description = COALESCE(?, description),
+                width = COALESCE(?, width),
+                height = COALESCE(?, height)
+            WHERE id = ?
+        """
+        self.db.execute(sql, (creator, description, width, height, file_id))
     
     def exists(self, drive_file_id: str) -> bool:
         """Check if a file exists by Google Drive ID."""
@@ -126,6 +142,30 @@ class FileRepository:
         
         rows = self.db.fetchall(sql)
         return {row['processing_status']: row['count'] for row in rows}
+
+    def get_files_missing_drive_fields(self, limit: Optional[int] = None) -> List[MediaFile]:
+        """Return files missing any of creator, description, width, or height."""
+        sql = """
+            SELECT * FROM files
+            WHERE (creator IS NULL OR description IS NULL OR width IS NULL OR height IS NULL)
+            ORDER BY created_at
+        """
+        if limit:
+            sql += f" LIMIT {limit}"
+        rows = self.db.fetchall(sql)
+        return [self._row_to_media_file(row) for row in rows]
+
+    def get_missing_drive_fields_batch(self, last_id: int = 0, batch_size: int = 100) -> List[MediaFile]:
+        """Fetch a batch of files with missing Drive fields, after a given id."""
+        sql = """
+            SELECT * FROM files
+            WHERE id > ?
+              AND (creator IS NULL OR description IS NULL OR width IS NULL OR height IS NULL)
+            ORDER BY id
+            LIMIT ?
+        """
+        rows = self.db.fetchall(sql, (last_id, batch_size))
+        return [self._row_to_media_file(row) for row in rows]
     
     def get_detailed_stats(self) -> Dict[str, int]:
         """Get detailed statistics separating images and videos."""
@@ -158,11 +198,13 @@ class FileRepository:
             filename=row['filename'],
             file_path=row['file_path'],
             file_size=row['file_size'],
-            width=row.get('width'),
-            height=row.get('height'),
+            width=(row['width'] if 'width' in row.keys() else None),
+            height=(row['height'] if 'height' in row.keys() else None),
             mime_type=row['mime_type'],
             created_date=row['created_date'],
             modified_date=row['modified_date'],
+            creator=(row['creator'] if 'creator' in row.keys() else None),
+            description=(row['description'] if 'description' in row.keys() else None),
             processing_status=ProcessingStatus(row['processing_status']),
             processed_at=row['processed_at'],
             thumbnail_path=row['thumbnail_path']
@@ -204,7 +246,7 @@ class MetadataRepository:
                 file_id, primary_subject, visual_quality, has_people, 
                 people_count, is_indoor, social_media_score, social_media_reason,
                 marketing_score, marketing_use, season, time_of_day,
-                mood_energy, color_palette, notes
+                mood_energy, color_palette, file_path_notes
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
@@ -227,6 +269,53 @@ class MetadataRepository:
         ))
         
         return cursor.lastrowid
+
+    def upsert(self, metadata: ExtractedMetadata) -> None:
+        """Insert or update metadata by file_id (idempotent upsert)."""
+        # Validate metadata
+        self._validate_metadata(metadata)
+
+        sql = """
+            INSERT INTO metadata (
+                file_id, primary_subject, visual_quality, has_people, 
+                people_count, is_indoor, social_media_score, social_media_reason,
+                marketing_score, marketing_use, season, time_of_day,
+                mood_energy, color_palette, file_path_notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(file_id) DO UPDATE SET
+                primary_subject = excluded.primary_subject,
+                visual_quality = excluded.visual_quality,
+                has_people = excluded.has_people,
+                people_count = excluded.people_count,
+                is_indoor = excluded.is_indoor,
+                social_media_score = excluded.social_media_score,
+                social_media_reason = excluded.social_media_reason,
+                marketing_score = excluded.marketing_score,
+                marketing_use = excluded.marketing_use,
+                season = excluded.season,
+                time_of_day = excluded.time_of_day,
+                mood_energy = excluded.mood_energy,
+                color_palette = excluded.color_palette,
+                file_path_notes = excluded.file_path_notes
+        """
+
+        self.db.execute(sql, (
+            metadata.file_id,
+            metadata.primary_subject,
+            metadata.visual_quality,
+            metadata.has_people,
+            metadata.people_count,
+            metadata.is_indoor,
+            metadata.social_media_score,
+            metadata.social_media_reason,
+            metadata.marketing_score,
+            metadata.marketing_use,
+            metadata.season,
+            metadata.time_of_day,
+            metadata.mood_energy,
+            metadata.color_palette,
+            metadata.notes
+        ))
     
     def get_by_file_id(self, file_id: int) -> Optional[ExtractedMetadata]:
         """Get metadata by file ID."""
@@ -394,7 +483,7 @@ class MetadataRepository:
             time_of_day=row['time_of_day'],
             mood_energy=row['mood_energy'],
             color_palette=row['color_palette'],
-            notes=row['notes'],
+            notes=(row['file_path_notes'] if ('file_path_notes' in row.keys()) else (row['notes'] if ('notes' in row.keys()) else None)),
             extracted_at=row['extracted_at']
         )
 
@@ -475,5 +564,30 @@ class ProcessingHistoryRepository:
             ORDER BY created_at DESC
         """
         
+        rows = self.db.fetchall(sql, (file_id,))
+        return [dict(row) for row in rows]
+
+
+class MetadataVersionRepository:
+    """Repository for metadata version history operations."""
+
+    def __init__(self, db_connection: DatabaseConnection):
+        self.db = db_connection
+
+    def add_version(self, file_id: int, version: int, data_json: str, edited_by: str = 'admin') -> int:
+        sql = """
+            INSERT INTO metadata_versions (file_id, version, data_json, edited_by)
+            VALUES (?, ?, ?, ?)
+        """
+        cursor = self.db.execute(sql, (file_id, version, data_json, edited_by))
+        return cursor.lastrowid
+
+    def list_versions(self, file_id: int):
+        sql = """
+            SELECT id, version, data_json, edited_at, edited_by
+            FROM metadata_versions
+            WHERE file_id = ?
+            ORDER BY version DESC
+        """
         rows = self.db.fetchall(sql, (file_id,))
         return [dict(row) for row in rows]

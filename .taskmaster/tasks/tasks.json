@@ -1,0 +1,1008 @@
+{
+  "project-final-polish": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Database Schema Migration (v4)",
+        "description": "Update the SQLite database schema to support new metadata fields and version history. This is a foundational task required by most other features.",
+        "details": "In `image_processor/db.py` or a new migration script: 1. Add nullable columns `creator TEXT`, `description TEXT`, `width INTEGER`, `height INTEGER` to the `files` table. 2. Create a new table `metadata_versions` with columns: `id INTEGER PRIMARY KEY`, `file_id TEXT NOT NULL`, `version INTEGER NOT NULL`, `data_json TEXT NOT NULL`, `edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`, `edited_by TEXT NOT NULL`, `FOREIGN KEY(file_id) REFERENCES files(file_id)`, `UNIQUE(file_id, version)`. 3. Create a Python script (`scripts/migrate_v3_to_v4.py`) that uses `sqlite3` to apply these `ALTER TABLE` and `CREATE TABLE` statements idempotently (e.g., by checking for column/table existence before adding).",
+        "testStrategy": "Run the migration script on a copy of the production database. Verify with `sqlite3` CLI that the new columns and table exist and that no data was lost. The script should be runnable multiple times without error.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Migration Script and Directory Structure",
+            "description": "Create the new migration script `scripts/migrate_v3_to_v4.py` and the containing `scripts/` directory. The script should include initial boilerplate code, such as importing the `sqlite3` module and defining the path to the database file.",
+            "dependencies": [],
+            "details": "Based on the codebase analysis, the `scripts` directory does not exist. Create a new directory named `scripts` in the project root. Inside this directory, create a new file named `migrate_v3_to_v4.py`. Add the necessary imports (`sqlite3`, `os`) and define a constant for the database path, likely pointing to `web-app/database.db`.",
+            "status": "pending",
+            "testStrategy": "Verify that the `scripts/` directory and the `migrate_v3_to_v4.py` file are created in the correct location."
+          },
+          {
+            "id": 2,
+            "title": "Implement Idempotent Column Addition to 'files' Table",
+            "description": "In `migrate_v3_to_v4.py`, write a function that adds the nullable columns `creator`, `description`, `width`, and `height` to the `files` table. This function must be idempotent, checking if each column already exists before attempting to add it.",
+            "dependencies": [
+              "1.1"
+            ],
+            "details": "Create a function `add_columns_to_files_table(cursor)`. Inside this function, get the existing columns by executing `PRAGMA table_info(files)`. For each new column (`creator`, `description`, `width`, `height`), check if it's in the list of existing columns. If not, execute an `ALTER TABLE files ADD COLUMN ...` statement. The columns should be `TEXT` or `INTEGER` and `NULL` is allowed.",
+            "status": "pending",
+            "testStrategy": "Run the script against a database. Use the `sqlite3` CLI (`.schema files`) to confirm the new columns exist. Run the script a second time and confirm it completes without any 'duplicate column name' errors."
+          },
+          {
+            "id": 3,
+            "title": "Implement 'metadata_versions' Table Creation",
+            "description": "In `migrate_v3_to_v4.py`, write a function to create the new `metadata_versions` table. The creation should be idempotent.",
+            "dependencies": [
+              "1.1"
+            ],
+            "details": "Create a function `create_metadata_versions_table(cursor)`. Use the `CREATE TABLE IF NOT EXISTS metadata_versions (...)` syntax to ensure idempotency. The schema must match the parent task's requirements: `id INTEGER PRIMARY KEY`, `file_id TEXT NOT NULL`, `version INTEGER NOT NULL`, `data_json TEXT NOT NULL`, `edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`, `edited_by TEXT NOT NULL`, a `FOREIGN KEY` on `file_id`, and a `UNIQUE` constraint on `(file_id, version)`.",
+            "status": "pending",
+            "testStrategy": "Run the script. Use the `sqlite3` CLI (`.tables` and `.schema metadata_versions`) to confirm the table is created with the correct schema. Run the script again and verify it completes without error."
+          },
+          {
+            "id": 4,
+            "title": "Orchestrate Migration Logic in Main Execution Block",
+            "description": "In `migrate_v3_to_v4.py`, implement the main execution logic that connects to the SQLite database and calls the functions to add columns and create the new table within a single transaction.",
+            "dependencies": [
+              "1.2",
+              "1.3"
+            ],
+            "details": "Create a `main()` function or use an `if __name__ == \"__main__\":` block. This block should: 1. Establish a connection to the database file. 2. Get a cursor. 3. Call `add_columns_to_files_table(cursor)`. 4. Call `create_metadata_versions_table(cursor)`. 5. Commit the transaction. 6. Close the connection. Add print statements to indicate progress (e.g., 'Applying migration v4...', 'Migration complete.').",
+            "status": "pending",
+            "testStrategy": "Execute the script from the command line (`python scripts/migrate_v3_to_v4.py`). Check for the success messages. Inspect a copy of the database to ensure both the new columns and the new table are present after a single run."
+          },
+          {
+            "id": 5,
+            "title": "Add Documentation and Verification Instructions",
+            "description": "Add comments and a docstring to `migrate_v3_to_v4.py` explaining its purpose, how to run it, and how to manually verify the schema changes.",
+            "dependencies": [
+              "1.4"
+            ],
+            "details": "Add a comprehensive docstring at the top of the `migrate_v3_to_v4.py` file. It should explain that this script migrates the database schema to version 4. Include a 'Usage' section showing the command to run it. Add a 'Verification' section with the `sqlite3` commands needed to check the schema of the `files` and `metadata_versions` tables (e.g., `sqlite3 web-app/database.db`, then `.schema files`). Add inline comments to the functions where the logic is complex.",
+            "status": "pending",
+            "testStrategy": "Perform a peer review of the script, ensuring the comments and docstring are clear, accurate, and sufficient for another developer to understand and run the migration."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Enrich Image Records with Google Drive Metadata",
+        "description": "Extend the Google Drive client to fetch and store additional native metadata like creator, description, and dimensions.",
+        "details": "In `image_processor/drive.py`: 1. Modify the `fields` parameter in the `service.files().list()` and `service.files().get()` calls to include `description`, `owners(displayName,emailAddress)`, `lastModifyingUser(displayName,emailAddress)`, `imageMediaMetadata(width,height,cameraMake,cameraModel,time)`, and `videoMediaMetadata(width,height,durationMillis)`. 2. In the processing loop, map these new fields to the database model. Prioritize `owners[0].displayName` for the `creator` field, with fallbacks to `lastModifyingUser.displayName` and then `owners[0].emailAddress`. Store `description`, `width`, and `height` directly into the new `files` table columns.",
+        "testStrategy": "Process a single known image from Google Drive that has a description and owner. Inspect the `files` table to confirm that the `creator`, `description`, `width`, and `height` columns are correctly populated.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update Drive API `fields` Parameter in `list_files_in_folder`",
+            "description": "Modify the `fields` parameter in the `service.files().list()` call within `image_processor/drive.py` to request the additional metadata fields required for enrichment.",
+            "dependencies": [],
+            "details": "In the `list_files_in_folder` function in `image_processor/drive.py`, update the `fields` parameter string to include `description`, `owners(displayName,emailAddress)`, `lastModifyingUser(displayName,emailAddress)`, `imageMediaMetadata(width,height,cameraMake,cameraModel,time)`, and `videoMediaMetadata(width,height,durationMillis)` for each file.",
+            "status": "pending",
+            "testStrategy": "After modification, run a test call to the function and inspect the raw output to ensure the new fields (`owners`, `imageMediaMetadata`, etc.) are present in the response objects."
+          },
+          {
+            "id": 2,
+            "title": "Map Image/Video Dimensions in `processor.py`",
+            "description": "In `image_processor/processor.py`, update the file processing loop to extract `width` and `height` from the API response and map them to the database model.",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "In the loop that iterates through file items fetched from Drive, add logic to check for `imageMediaMetadata` or `videoMediaMetadata`. Extract the `width` and `height` values from the appropriate nested object and add them to the dictionary being prepared for the database upsert. Ensure it gracefully handles files that are not images or videos.",
+            "status": "pending",
+            "testStrategy": "Process a known image and a known video. Query the `files` table to verify that the `width` and `height` columns are correctly populated for both records."
+          },
+          {
+            "id": 3,
+            "title": "Implement Creator Name Extraction and Mapping",
+            "description": "In `image_processor/processor.py`, implement the business logic to determine the `creator` name from the `owners` and `lastModifyingUser` fields and map it to the database model.",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "Within the file processing loop in `processor.py`, add logic to determine the creator's name. Prioritize `owners[0].displayName`. If unavailable, fall back to `lastModifyingUser.displayName`. As a final fallback, use `owners[0].emailAddress`. Assign the result to the `creator` key in the data dictionary for the database.",
+            "status": "pending",
+            "testStrategy": "Process three files: one with only an owner, one with a last modifying user, and one with neither. Check the `creator` column in the `files` table to confirm the fallback logic works as expected."
+          },
+          {
+            "id": 4,
+            "title": "Map `description` Field in `processor.py`",
+            "description": "In `image_processor/processor.py`, map the `description` field from the Google Drive file resource to the corresponding database column.",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "In the file processing loop in `processor.py`, retrieve the `description` value from the file item object returned by the Drive API. Add this value to the data dictionary being prepared for the database, ensuring it handles cases where the description is null or missing.",
+            "status": "pending",
+            "testStrategy": "Process a file with a known description and one without. Verify the `description` column in the `files` table is correctly populated for the first and is `NULL` (or empty string) for the second."
+          },
+          {
+            "id": 5,
+            "title": "Align `service.files().get()` Calls with Enriched Fields",
+            "description": "Ensure any direct `service.files().get()` calls also request the full set of enriched metadata fields, to support single-file reprocessing or updates.",
+            "dependencies": [],
+            "details": "Search `image_processor/drive.py` for any usage of `service.files().get()`. Update its `fields` parameter to be consistent with the enriched fields requested by the `list` method. If no such function exists, create a new helper function, e.g., `get_file_details(service, file_id)`, that performs a `get()` call with the full set of fields.",
+            "status": "pending",
+            "testStrategy": "Call the modified (or new) single-file fetch function with a test file ID. Assert that the returned object contains the enriched fields like `owners` and `imageMediaMetadata`."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Implement Advanced Reprocessing CLI",
+        "description": "Build a robust command-line interface for the Python processor to allow for controlled and flexible reprocessing of the image library.",
+        "details": "In `image_processor/main.py` using `argparse`: 1. Add a `reprocess` subcommand. 2. Add arguments: `--mode` with choices `upsert` (default), `archive-existing`, `clear-first`. 3. Add `--limit N` to process only the first N images. 4. Add `--batch-size N` (default 100). 5. Add `--resume-from <file_id>` to skip files until the specified ID is found. 6. Implement the logic for each mode: `upsert` updates existing rows; `archive-existing` will require logic to copy data to `metadata_versions` (dependency on API task); `clear-first` runs `DELETE` statements on metadata and tags before processing.",
+        "testStrategy": "Run the CLI with each flag: `--limit 5` should process only 5 images. `--mode clear-first` should result in fresh data. `--mode upsert` should update existing records. Test `--resume-from` by stopping a run and restarting it, verifying it skips already-processed files.",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create `reprocess` Subcommand with CLI Arguments",
+            "description": "In `image_processor/main.py`, extend the existing `argparse` setup to include a new `reprocess` subcommand. This subcommand should define the following arguments: `--mode` with choices `upsert`, `archive-existing`, `clear-first` and a default of `upsert`; `--limit` as an integer; `--batch-size` as an integer with a default of 100; and `--resume-from` as a string.",
+            "dependencies": [],
+            "details": "Modify the `main` function in `image_processor/main.py`. Use `subparsers.add_parser()` to create the `reprocess` command. Use `add_argument()` for each of the required flags, ensuring correct types, choices, and default values are set as specified in the parent task.",
+            "status": "pending",
+            "testStrategy": "Run the script with `reprocess --help` and verify that all new arguments and their descriptions are displayed correctly. Test that providing an invalid choice for `--mode` raises an error."
+          },
+          {
+            "id": 2,
+            "title": "Implement File Selection Logic for `--limit` and `--resume-from`",
+            "description": "In the image processor's main logic (e.g., a new function in `image_processor/processor.py`), implement the filtering of files to be reprocessed based on the `--limit` and `--resume-from` arguments. The logic should first retrieve a full list of candidate files from the database and then apply these arguments to create the final processing queue.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "The function responsible for reprocessing will query the database for all files. If `--resume-from <file_id>` is provided, the code should iterate through the sorted list of files and skip all files until the one with the matching `file_id` is found. If `--limit N` is provided, the processing queue should be truncated to the first N items after the resume point.",
+            "status": "pending",
+            "testStrategy": "Create a dummy list of 10 file IDs. Run with `--limit 5` and verify only the first 5 are processed. Run with `--resume-from <ID_of_5th_file>` and verify processing starts from the 5th file. Combine both flags and verify the logic is correct."
+          },
+          {
+            "id": 3,
+            "title": "Implement `clear-first` Reprocessing Mode",
+            "description": "Implement the logic for the `--mode clear-first`. When this mode is active, the processor must delete all existing metadata and tags associated with the selected files from the database before starting the reprocessing loop.",
+            "dependencies": [
+              "3.2"
+            ],
+            "details": "Create a new function in `image_processor/db.py`, such as `clear_file_metadata(file_ids)`, that accepts a list of file IDs and executes `DELETE FROM image_metadata WHERE file_id IN (...)` and `DELETE FROM image_tags WHERE file_id IN (...)`. This function should be called from the main reprocessing logic in `processor.py` if `args.mode == 'clear-first'`.",
+            "status": "pending",
+            "testStrategy": "Populate the database with metadata for a few test images. Run the reprocessor with `--mode clear-first` and `--limit 2`. Verify that the metadata and tags for the first two images are deleted and then repopulated."
+          },
+          {
+            "id": 4,
+            "title": "Implement `upsert` Data Handling for Reprocessing",
+            "description": "Ensure the database insertion logic, which is the default behavior for reprocessing, correctly handles existing records by updating them instead of causing an error. This is commonly known as an 'upsert' operation.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Modify the existing database function in `image_processor/db.py` that saves image metadata (e.g., `save_metadata`). Change the SQL statement to use `INSERT ... ON CONFLICT (file_id) DO UPDATE SET ...`. This will ensure that when reprocessing an existing file, its record in the `image_metadata` table is updated with the new data.",
+            "status": "pending",
+            "testStrategy": "Process an image and record its metadata. Manually change a value in the database (e.g., a description). Rerun the processor on that same image using the default `upsert` mode. Verify that the manually changed value has been overwritten by the new processing result."
+          },
+          {
+            "id": 5,
+            "title": "Implement `archive-existing` Mode Logic",
+            "description": "Implement the logic for the `--mode archive-existing`. Before reprocessing a file, the system must copy its current metadata and tags from their primary tables to the `metadata_versions` archive table.",
+            "dependencies": [
+              "3.2"
+            ],
+            "details": "Create a new function in `image_processor/db.py`, like `archive_metadata(file_id)`. This function will read the record from `image_metadata` for the given `file_id` and insert it into `metadata_versions`. This function should be called within the main processing loop in `processor.py` for each file, but only if `args.mode == 'archive-existing'`. This subtask assumes the `metadata_versions` table exists per the parent task's dependency on another API task.",
+            "status": "pending",
+            "testStrategy": "Process an image to ensure it has metadata. Run the reprocessor on that image with `--mode archive-existing`. Check the `metadata_versions` table to confirm that the original metadata has been copied there before being updated in the main `image_metadata` table."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement Batching, Resumability, and Checkpointing",
+        "description": "Enhance the reprocessing CLI with batching to manage memory and resumability to recover from interruptions.",
+        "details": "In `image_processor/main.py`: 1. Wrap the main processing loop to handle batches based on `--batch-size`. 2. Implement checkpointing: after each successful batch, write the ID of the last processed file to a checkpoint file (e.g., `processing_checkpoint.txt`). 3. On startup, if the checkpoint file exists and `--resume-from` is not specified, automatically offer to resume from the checkpoint. 4. Ensure processing is idempotent: by default, skip files with a `processing_status` of 'completed' unless `--force` or `--mode clear-first` is used.",
+        "testStrategy": "Start a large reprocessing run with a small batch size (e.g., 10). Manually stop the process after a few batches. Verify the checkpoint file is created with the correct last file ID. Restart the script and confirm it resumes from the correct position.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Modify Database Query for Idempotency",
+            "description": "Update the database query logic to exclude files already marked as 'completed' by default. This is the foundation for safe reprocessing and resumption, preventing redundant work.",
+            "dependencies": [],
+            "details": "In `image_processor/database.py`, modify the function that fetches files for processing. It should accept a boolean `force` parameter. If `force` is `False` (the default), the underlying SQLAlchemy query should add a filter to exclude records where `processing_status` is 'completed'. This ensures that standard runs do not re-process finished items. The `handle_reprocess` function in `main.py` will pass `args.force` or `args.mode == 'clear-first'` to this parameter.",
+            "status": "pending",
+            "testStrategy": "Run the reprocess command on a dataset containing 'completed' files. Verify that without `--force`, these files are skipped. Run again with `--force` and verify they are processed."
+          },
+          {
+            "id": 2,
+            "title": "Add Checkpoint Reading and Resume Prompt",
+            "description": "Implement the logic to detect a checkpoint file on startup and, if no explicit resume point is given, prompt the user to continue from the last session.",
+            "dependencies": [],
+            "details": "In `image_processor/main.py`, at the beginning of the `handle_reprocess` function, define `CHECKPOINT_FILE = 'processing_checkpoint.txt'`. Check if this file exists and if the `--resume-from` argument was NOT provided. If both are true, read the file ID from the checkpoint file, display it to the user, and ask for confirmation (e.g., 'Resume from file ID X? [y/N]'). If the user agrees, store this ID to be used as the starting point for processing.",
+            "status": "pending",
+            "testStrategy": "Create a dummy `processing_checkpoint.txt` with a file ID. Run the script without `--resume-from`. Verify it prompts the user. Test both 'y' and 'n' responses. Run the script with `--resume-from` and verify it does not prompt."
+          },
+          {
+            "id": 3,
+            "title": "Refactor Processing Loop for Batching",
+            "description": "Change the main processing logic from handling all files at once to processing them in discrete batches to manage memory and enable checkpointing.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "In `image_processor/database.py`, create a new function `get_files_in_batch(batch_size, start_after_id=None, force=False)`. This function will fetch a limited number of file records, sorted by ID, starting after `start_after_id`. In `image_processor/main.py`, refactor the `handle_reprocess` function to use a `while True` loop. Inside the loop, call `get_files_in_batch`, process the returned items, and update `last_processed_id` with the ID of the last item in the batch. The loop breaks when an empty batch is returned.",
+            "status": "pending",
+            "testStrategy": "Run the reprocess command with `--batch-size 5` and `--limit 12`. Verify using logs that three batches are processed (5 items, 5 items, 2 items)."
+          },
+          {
+            "id": 4,
+            "title": "Write Last Processed ID to Checkpoint File",
+            "description": "After each batch is successfully processed, save the ID of the last file in that batch to a checkpoint file to enable resumability.",
+            "dependencies": [
+              "4.3"
+            ],
+            "details": "In `image_processor/main.py`, within the new batch processing `while` loop, after successfully processing all items in a batch and before fetching the next one, get the ID of the last processed file. Open `processing_checkpoint.txt` in write mode (`'w'`) and write this ID to the file. This ensures the checkpoint is always up-to-date with the latest successfully completed batch.",
+            "status": "pending",
+            "testStrategy": "Start a reprocessing run with a small batch size. Manually stop the script after 2-3 batches have completed. Inspect `processing_checkpoint.txt` and verify it contains the ID of the last file from the last fully completed batch."
+          },
+          {
+            "id": 5,
+            "title": "Integrate CLI Flags with Resumption and Idempotency",
+            "description": "Ensure the `--resume-from` and `--force` command-line arguments correctly override the new checkpointing and idempotency behaviors.",
+            "dependencies": [
+              "4.1",
+              "4.2",
+              "4.3"
+            ],
+            "details": "In `image_processor/main.py`, establish the final `start_after_id` for the initial batch call. The order of precedence should be: 1) `args.resume_from` if provided, 2) the ID from the checkpoint file if the user confirms resumption, 3) `None` otherwise. Pass the value of `args.force or args.mode == 'clear-first'` to the `force` parameter of `get_files_in_batch` in every call to control the idempotency behavior.",
+            "status": "pending",
+            "testStrategy": "1. Run with `--resume-from <ID>` and a checkpoint file present; verify the run starts from the ID specified in the argument, not the file. 2. Run with `--force`; verify that files marked 'completed' are re-processed. 3. Start a run, stop it, then restart and resume; verify it skips the first batch and starts on the second."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Implement Concurrency, Timeouts, and Rate Limit Handling",
+        "description": "Add concurrency controls and robust error handling for interactions with external vision providers.",
+        "details": "In the vision client abstraction layer: 1. Add a configuration option for `max_concurrency` (e.g., in a `VisionModelConfig` object). Use a `ThreadPoolExecutor` or `asyncio.Semaphore` to limit concurrent requests to the vision API. 2. Implement exponential backoff with jitter for API calls that return 429 (Too Many Requests) or 5xx server errors. 3. Add a hard `timeout` to each analysis request. If a request times out, catch the exception, log the error, mark the file's `processing_status` as 'failed' with an `error_message`, and continue to the next file.",
+        "testStrategy": "1. Set `max_concurrency` to 2 and process 10 images; verify using logs that no more than 2 requests are in-flight. 2. Simulate a 429 error from the API provider and verify that the backoff logic is triggered. 3. Set a very low timeout (e.g., 0.1s) and verify that the image is marked as 'failed' with a timeout error in the database.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update Vision Model Configuration",
+            "description": "Add configuration parameters for concurrency, timeouts, and retries to the vision model configuration object.",
+            "dependencies": [],
+            "details": "In the file responsible for vision model configuration (likely `image_processor/config.py`), extend the `VisionModelConfig` class or a similar object to include `max_concurrency`, `request_timeout`, `retry_max_attempts`, and `retry_wait_multiplier`. Provide sensible default values for these new settings.",
+            "status": "pending",
+            "testStrategy": "Inspect the configuration object after application startup to verify that the new keys (`max_concurrency`, `request_timeout`, etc.) are present and loaded with their default or environment-specific values."
+          },
+          {
+            "id": 2,
+            "title": "Implement Concurrency Limiting with asyncio.Semaphore",
+            "description": "Use an asyncio.Semaphore in the main processing loop to limit the number of concurrent requests sent to the vision API.",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "In `image_processor/main.py`, within the main processing function (e.g., `main` or `reprocess`), initialize an `asyncio.Semaphore` using the `max_concurrency` value from the configuration. Wrap the call to the image processing coroutine (e.g., `process_single_file`) within a `async with semaphore:` block to ensure the number of concurrent executions does not exceed the configured limit.",
+            "status": "pending",
+            "testStrategy": "Set `max_concurrency` to a low number (e.g., 2). Process a batch of 10 images and add logging before and after the API call. Verify from the logs that no more than 2 API calls are ever active simultaneously."
+          },
+          {
+            "id": 3,
+            "title": "Implement Exponential Backoff for API Calls",
+            "description": "Wrap the vision API call with a retry mechanism that handles transient errors like 429 (Too Many Requests) and 5xx server errors using exponential backoff with jitter.",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "In `image_processor/vision.py`, use a library like `tenacity` to decorate the `analyze_image` method or the specific `model.generate_content` call within it. Configure the decorator to retry on specific exceptions thrown by the Google AI client for 429 and 5xx errors (e.g., `google.api_core.exceptions.ResourceExhausted`, `google.api_core.exceptions.ServiceUnavailable`). Use the retry parameters from the `VisionModelConfig`.",
+            "status": "pending",
+            "testStrategy": "Mock the `model.generate_content` call to raise a `ResourceExhausted` exception twice before succeeding. Verify using logs that the retry logic is triggered and that the call eventually succeeds after two retries."
+          },
+          {
+            "id": 4,
+            "title": "Add Request Timeout to Vision API Client",
+            "description": "Pass a timeout parameter to each individual vision API request to prevent it from hanging indefinitely.",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "In the `VisionClient.analyze_image` method in `image_processor/vision.py`, locate the call to the underlying Google AI SDK method (`model.generate_content`). Pass the `request_timeout` value from `VisionModelConfig` to this call, likely using a `request_options={'timeout': ...}` parameter, as specified in the `google-generativeai` library documentation.",
+            "status": "pending",
+            "testStrategy": "Set a very low `request_timeout` (e.g., 0.01 seconds). Attempt to process an image and verify that a timeout-related exception (e.g., `DeadlineExceeded`) is raised by the vision client."
+          },
+          {
+            "id": 5,
+            "title": "Implement Timeout and Fatal Error Handling in Processor",
+            "description": "Catch timeout exceptions and other non-retriable errors in the main processing function, log them, and update the image's database record to reflect the failure.",
+            "dependencies": [
+              "5.4"
+            ],
+            "details": "In `image_processor/main.py`, expand the `try...except` block within the `process_single_file` coroutine. Add a specific `except` clause for the timeout exception (e.g., `google.api_core.exceptions.DeadlineExceeded`) raised by the change in subtask 5.4. In this block, log the error and update the file's database record, setting `processing_status` to 'failed' and populating the `error_message` field with details about the timeout.",
+            "status": "pending",
+            "testStrategy": "Using the low timeout from the previous test, run the full processing logic for one image. Verify that the script does not crash, the error is logged, and the corresponding row in the `files` table has its `processing_status` updated to 'failed' and `error_message` is not empty."
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Review and Tighten Vision Model Prompts",
+        "description": "Refine the prompts sent to vision models to ensure consistent, strictly-formatted JSON output and improve the quality of analysis.",
+        "details": "In `image_processor/prompts.py` or equivalent: 1. Review and edit prompts for all providers (local, Claude, Together). 2. Add explicit instructions like 'You are a helpful assistant that only responds with valid, minified JSON. Do not include markdown formatting or any other text outside of the JSON object.' 3. Clearly define the expected JSON schema in the prompt, including field names, data types, and valid enum values for fields like `season`, `time_of_day`, etc. 4. Ensure all optional fields are explicitly marked as such in the prompt instructions (e.g., 'Include `season` only if clearly identifiable').",
+        "testStrategy": "Process a sample set of 20 diverse images (indoor, outdoor, people, no people, different seasons). Manually review the generated JSON for each to ensure it conforms to the schema and that no extraneous text is present. Validate 100% of outputs are parseable JSON.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Refactor prompts.py for Component-Based Prompts",
+            "description": "Modify `image_processor/prompts.py` to support building prompts from distinct components. This will involve creating separate variables for system instructions, schema definitions, and user requests, instead of a single monolithic prompt string.",
+            "dependencies": [],
+            "details": "In `image_processor/prompts.py`, replace the existing `BASE_PROMPT` constant with multiple constants: `SYSTEM_INSTRUCTIONS`, `JSON_SCHEMA_DEFINITION`, and `USER_REQUEST_TEMPLATE`. The `get_analysis_prompt` function will be updated to assemble these components, making it easier to modify parts of the prompt independently.",
+            "status": "pending",
+            "testStrategy": "Run existing unit tests if any, or manually call `get_analysis_prompt()` and verify it returns a string similar in content to the original, confirming the refactor did not break basic functionality."
+          },
+          {
+            "id": 2,
+            "title": "Define Detailed JSON Schema in Prompt",
+            "description": "Populate the `JSON_SCHEMA_DEFINITION` variable in `image_processor/prompts.py` with a clear and detailed definition of the expected JSON output.",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "The schema definition must explicitly list all fields: `title` (string), `tags` (array of strings), `season` (enum: 'Spring', 'Summer', 'Autumn', 'Winter', or null if not identifiable), `time_of_day` (enum: 'Morning', 'Day', 'Evening', 'Night', or null if not identifiable), `has_people` (boolean), and `quality_score` (integer 1-10). For each field, provide a brief description of what is expected. Mark `season` and `time_of_day` as optional, to be included only if clearly identifiable in the image.",
+            "status": "pending",
+            "testStrategy": "Review the `JSON_SCHEMA_DEFINITION` string variable to ensure it is well-formed, accurate, and contains all required fields, types, enum values, and optionality notes as specified."
+          },
+          {
+            "id": 3,
+            "title": "Add Strict JSON-Only Formatting Instructions",
+            "description": "Populate the `SYSTEM_INSTRUCTIONS` variable in `image_processor/prompts.py` with explicit instructions for the model to ensure it returns only valid, minified JSON.",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "The `SYSTEM_INSTRUCTIONS` constant should contain text like: 'You are a helpful assistant that analyzes images. Your response must be a single, valid, minified JSON object and nothing else. Do not include markdown formatting (e.g., ```json), explanations, or any text outside of the JSON object.'",
+            "status": "pending",
+            "testStrategy": "Inspect the `SYSTEM_INSTRUCTIONS` constant in `prompts.py` to confirm it contains the required strict formatting rules."
+          },
+          {
+            "id": 4,
+            "title": "Assemble and Finalize Default/Local Prompt",
+            "description": "Update the `get_analysis_prompt` function in `image_processor/prompts.py` to combine the new components into a final, comprehensive prompt for the default provider (used by local models).",
+            "dependencies": [
+              "6.2",
+              "6.3"
+            ],
+            "details": "Modify the `get_analysis_prompt` function to construct the final prompt by concatenating `SYSTEM_INSTRUCTIONS`, `JSON_SCHEMA_DEFINITION`, and `USER_REQUEST_TEMPLATE`. Ensure the default case in the function returns this newly assembled prompt.",
+            "status": "pending",
+            "testStrategy": "Process 5 diverse images using the local provider. Verify that 100% of the outputs are parseable JSON and that the structure generally conforms to the requested schema."
+          },
+          {
+            "id": 5,
+            "title": "Adapt Prompts for Claude and Together AI Providers",
+            "description": "Create provider-specific variations of the prompt within `get_analysis_prompt` for 'claude' and add a placeholder for the future 'together' provider to optimize output for cloud-based models.",
+            "dependencies": [
+              "6.4"
+            ],
+            "details": "In `image_processor/prompts.py`, use the `if provider == 'claude':` block to create a tailored prompt version. This may involve moving instructions into a system prompt field if the client supports it, or rephrasing for clarity. Add a similar `elif provider == 'together':` block with a placeholder prompt, anticipating the implementation from Task 13.",
+            "status": "pending",
+            "testStrategy": "Process 10 diverse images using the Claude provider. Review the generated JSON to ensure it is strictly formatted and conforms to the schema. Check that no extraneous text or markdown is present in the output."
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Implement Optional Multi-Sample Consensus",
+        "description": "Add a feature to perform multiple analyses per image and merge the results into a single, more reliable record.",
+        "details": "In the image processor: 1. Add a config flag or CLI argument `--consensus-samples N` (e.g., 3). 2. If N > 1, run the vision analysis N times for each image. 3. Create a `merge_results` function that takes a list of JSON objects and combines them: use the median for numeric scores, majority vote for booleans, a union of unique values for tag arrays, and the longest non-empty string for text fields. 4. The final, merged JSON is then saved to the database.",
+        "testStrategy": "Run a single image with `--consensus-samples 3`. Log the three individual JSON responses and the final merged result. Verify that the merging logic is correctly applied for scores, booleans, tags, and text fields according to the specified rules.",
+        "priority": "low",
+        "dependencies": [
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add `--consensus-samples` CLI Argument to Image Processor",
+            "description": "Modify the command-line interface in `image_processor/main.py` to accept a new optional argument for enabling multi-sample consensus.",
+            "dependencies": [],
+            "details": "In `image_processor/main.py`, use the `argparse` module to add a new argument: `--consensus-samples`. It should be an integer, have a default value of 1, and include help text explaining its purpose (e.g., \"Number of times to analyze each image for consensus. Default is 1 (no consensus).\").",
+            "status": "pending",
+            "testStrategy": "Run the script with `python image_processor/main.py --help` and verify the new argument is listed. Run with `--consensus-samples 3` and check that the parsed arguments object contains `consensus_samples=3`."
+          },
+          {
+            "id": 2,
+            "title": "Implement the Consensus Merging Logic in a Utility Function",
+            "description": "Create a new function, `merge_results`, that implements the specified logic for combining multiple analysis results into a single record.",
+            "dependencies": [],
+            "details": "Create a new file `image_processor/consensus.py`. Inside, define a function `merge_results(results: list[dict]) -> dict`. This function should implement the merging rules: median for numeric scores, majority vote for booleans, a union of unique values for tag arrays, and the longest non-empty string for text fields. This function should be pure and not have side effects.",
+            "status": "pending",
+            "testStrategy": "Create a separate test file (e.g., `tests/test_consensus.py`) with unit tests that provide sample lists of analysis dictionaries to `merge_results` and assert that the output correctly applies the merging rules for each data type."
+          },
+          {
+            "id": 3,
+            "title": "Modify Processing Loop to Perform Multiple Analyses",
+            "description": "Update the main image processing function in `image_processor/main.py` to call the vision analysis multiple times if `consensus_samples` is greater than 1.",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "In the main processing loop within `image_processor/main.py`, locate the call to the vision analysis function (e.g., `vision.analyze_image()`). Based on the `args.consensus_samples` value, wrap this call in a loop to execute it N times for the current image. Collect each of the JSON/dict results into a list.",
+            "status": "pending",
+            "testStrategy": "Add temporary logging inside the loop. Run a single image with `--consensus-samples 3`. Verify from the logs that the `vision.analyze_image()` function was called exactly 3 times for that image."
+          },
+          {
+            "id": 4,
+            "title": "Integrate `merge_results` into the Main Processing Flow",
+            "description": "After collecting multiple analysis results, use the `merge_results` function to combine them into a single, final result before database insertion.",
+            "dependencies": [
+              "7.2",
+              "7.3"
+            ],
+            "details": "In `image_processor/main.py`, after the loop from subtask 7.3 completes, check if the list of results contains more than one item. If so, import and call the `consensus.merge_results()` function with the list of results. The output of this function will be the final analysis data for the image. If only one result exists, use it directly.",
+            "status": "pending",
+            "testStrategy": "Using logging, print the list of individual results and the final merged result. Manually verify that the merged result is consistent with the output expected from the `merge_results` function for the given inputs."
+          },
+          {
+            "id": 5,
+            "title": "Save Merged Result to Database and Add Verification Logging",
+            "description": "Ensure the final (potentially merged) analysis result is saved to the database and add logging to verify the consensus process.",
+            "dependencies": [
+              "7.4"
+            ],
+            "details": "Ensure the variable holding the final, potentially merged, result from subtask 7.4 is the one passed to the database saving function (e.g., `db.save_analysis_result`). Implement the logging strategy from the task description: if consensus is active, log each of the N individual JSON responses and the final merged JSON object before it is saved.",
+            "status": "pending",
+            "testStrategy": "Run the processor on a single image with `--consensus-samples 3`. Check the application logs to confirm the individual and merged results are printed. Inspect the database to verify that the row for the processed image contains the data from the merged result, not from any single analysis."
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "API: Add Endpoints for Metadata Version History",
+        "description": "Create new Node/Express API endpoints to expose the version history of an image's metadata.",
+        "details": "In the `web-app/server/` directory: 1. Create a new route `GET /api/images/:id/versions`. This endpoint should query the `metadata_versions` table for the given `file_id`, ordering by `version DESC`, and return a list of versions containing `version`, `edited_at`, and `edited_by`. 2. Create a new route `POST /api/images/:id/versions/:version/revert`. This endpoint will fetch the specified version's `data_json`, apply it to the `files` table, and then create a *new* version entry in `metadata_versions` to record the revert action.",
+        "testStrategy": "After manually inserting a few version records for a test image: 1. Call `GET /api/images/test-id/versions` and assert that the response contains the correct version history. 2. Call the `POST` revert endpoint and then query the main `/api/images/test-id` endpoint to confirm the metadata has been reverted. Also check that a new version record was created for the revert action.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create GET /api/images/:id/versions endpoint",
+            "description": "In `web-app/server/routes/images.js`, create a new route handler for `GET /:id/versions` to fetch the version history for a specific image.",
+            "dependencies": [],
+            "details": "The route handler should query the `metadata_versions` table using the `id` from the request parameters as the `file_id`. The query must select the `version`, `edited_at`, and `edited_by` columns, order the results by `version` in descending order, and return the resulting rows as a JSON array. Ensure a 404 is returned if the image ID does not exist in the `files` table.",
+            "status": "pending",
+            "testStrategy": "After manually inserting version records for a test image, call `GET /api/images/test-id/versions` and assert that the response body is a JSON array containing the correct version data, ordered with the highest version number first."
+          },
+          {
+            "id": 2,
+            "title": "Define POST /api/images/:id/versions/:version/revert endpoint structure",
+            "description": "In `web-app/server/routes/images.js`, add the route definition and initial structure for `POST /:id/versions/:version/revert`.",
+            "dependencies": [],
+            "details": "Create a new `router.post('/:id/versions/:version/revert', ...)` handler. The initial implementation should correctly parse the `id` and `version` from `req.params`. Set up the standard `async` function structure with a `try/catch` block for error handling. The detailed logic for the revert operation will be implemented in subsequent subtasks.",
+            "status": "pending",
+            "testStrategy": "Call the endpoint with a test ID and version. Verify that the handler is invoked and can correctly log the parsed `id` and `version` parameters."
+          },
+          {
+            "id": 3,
+            "title": "Implement fetching specific version data for revert action",
+            "description": "Within the `revert` endpoint handler, add the logic to query the `metadata_versions` table and retrieve the `data_json` for the specified version.",
+            "dependencies": [
+              "8.2"
+            ],
+            "details": "Using the `id` and `version` parameters, execute a `SELECT data_json FROM metadata_versions WHERE file_id = $1 AND version = $2` query. If no row is found, the endpoint should respond with a 404 Not Found error. The retrieved `data_json` should be stored in a variable for use in the next step.",
+            "status": "pending",
+            "testStrategy": "For a known `file_id` and `version` in the database, call the endpoint and assert that the internal logic successfully retrieves the correct `data_json` blob. Test the 404 case by requesting a non-existent version."
+          },
+          {
+            "id": 4,
+            "title": "Implement update of 'files' table with reverted data",
+            "description": "Using the fetched `data_json`, update the corresponding record in the `files` table to apply the historical metadata.",
+            "dependencies": [
+              "8.3"
+            ],
+            "details": "Parse the `data_json` object retrieved in the previous subtask. Construct and execute an `UPDATE files SET primary_subject = $1, notes = $2, tags = $3, ... WHERE id = $N` statement, mapping the fields from `data_json` to the columns in the `files` table. It is recommended to wrap this and the next subtask's logic in a single database transaction.",
+            "status": "pending",
+            "testStrategy": "Call the revert endpoint. After the call, query the `GET /api/images/:id` endpoint and assert that the metadata fields (`primary_subject`, `notes`, etc.) match the data from the reverted version's `data_json`."
+          },
+          {
+            "id": 5,
+            "title": "Create new version entry to log the revert action",
+            "description": "As the final step of the revert operation, insert a new record into `metadata_versions` to create a snapshot of the reverted state.",
+            "dependencies": [
+              "8.4"
+            ],
+            "details": "After the `files` table is successfully updated, perform a final `INSERT` into `metadata_versions`. This new row will have a `version` number of `MAX(version) + 1` for the `file_id`. The `data_json` will be the same data that was just applied to the `files` table. Set `edited_by` to a specific value like 'admin-revert' to indicate the source of the change. Commit the transaction.",
+            "status": "pending",
+            "testStrategy": "After calling the revert endpoint, call `GET /api/images/:id/versions`. Assert that a new version has been added at the top of the list, and its `edited_by` field indicates it was a revert action."
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "API: Implement Snapshotting on Metadata Edit",
+        "description": "Modify the existing metadata update endpoint to automatically create a version snapshot before applying changes.",
+        "details": "In the `web-app/server/` route handler for `PUT /api/images/:id/metadata`: 1. Before executing the `UPDATE` on the `files` table, first read the current metadata for that file. 2. Insert a new row into the `metadata_versions` table containing the current state. Calculate the new `version` number by getting the `MAX(version) + 1` for that `file_id`. Set `edited_by` to 'admin'. 3. After the snapshot is successfully saved, proceed with updating the `files` table with the new data from the request body.",
+        "testStrategy": "Call `PUT /api/images/test-id/metadata` with new data. Verify two things: 1. The `files` table is updated correctly. 2. A new row appears in the `metadata_versions` table containing the *previous* state of the metadata.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Fetch Current Image Metadata for Snapshotting",
+            "description": "In the `PUT /api/images/:id/metadata` route handler in `web-app/server/routes/images.js`, before any update logic, add a database query to fetch the complete current record for the specified image ID from the `files` table. Store this record in a variable for later use. Handle the case where the image is not found.",
+            "dependencies": [],
+            "details": "Use the `db.get()` function with a `SELECT * FROM files WHERE id = ?` query. The result will contain the `title`, `description`, and `tags` to be saved in the version history. If no record is returned, the request should end with a 404 error.",
+            "status": "pending",
+            "testStrategy": "Verify that a `db.get` call is added at the beginning of the route handler. Manually test the endpoint with a non-existent ID to ensure it returns a 404 before attempting any writes."
+          },
+          {
+            "id": 2,
+            "title": "Calculate the Next Version Number",
+            "description": "In `web-app/server/routes/images.js`, after fetching the current metadata, query the `metadata_versions` table to find the maximum `version` for the given `file_id`. Calculate the next version number, which should be `MAX(version) + 1`, or 1 if no previous versions exist.",
+            "dependencies": [
+              "9.1"
+            ],
+            "details": "Execute the query `SELECT MAX(version) as max_version FROM metadata_versions WHERE file_id = ?`. The next version will be `(result.max_version || 0) + 1`. This logic should be placed after successfully fetching the current file data.",
+            "status": "pending",
+            "testStrategy": "Check the database query logic. Test against an image with no versions (should result in 1) and an image with existing versions (should result in MAX + 1)."
+          },
+          {
+            "id": 3,
+            "title": "Insert New Record into `metadata_versions`",
+            "description": "Using the current metadata fetched in subtask 9.1 and the version number from 9.2, construct and execute an `INSERT` query to save a snapshot into the `metadata_versions` table. The record must include the `file_id`, new `version`, and the old `title`, `description`, and `tags`. Set the `edited_by` field to 'admin'.",
+            "dependencies": [
+              "9.1",
+              "9.2"
+            ],
+            "details": "Use the `db.run()` function with an `INSERT INTO metadata_versions (file_id, version, title, description, tags, edited_by) VALUES (?, ?, ?, ?, ?, ?)` statement. The values will come from the request parameters, the result of subtask 9.1, and the result of subtask 9.2.",
+            "status": "pending",
+            "testStrategy": "After calling the endpoint, query the `metadata_versions` table directly to confirm that a new row was added with the correct `file_id`, an incremented `version`, and the *previous* state of the metadata."
+          },
+          {
+            "id": 4,
+            "title": "Update `files` Table with New Metadata",
+            "description": "After the snapshot has been successfully saved to `metadata_versions`, proceed with the original logic of updating the `files` table. Use the new metadata from the request body (`req.body`) to execute the `UPDATE` query on the `files` table for the given image ID.",
+            "dependencies": [
+              "9.3"
+            ],
+            "details": "The existing `UPDATE files SET ...` logic should be moved to execute only after the `INSERT` into `metadata_versions` is successful. This ensures the snapshot is created before the live record is changed.",
+            "status": "pending",
+            "testStrategy": "Call the endpoint with new metadata. Query the `files` table to confirm that the `title`, `description`, and `tags` columns have been updated with the new values from the request body."
+          },
+          {
+            "id": 5,
+            "title": "Wrap Snapshot and Update Operations in a Transaction",
+            "description": "Refactor the route handler in `web-app/server/routes/images.js` to wrap the snapshot creation (`INSERT`) and the main record update (`UPDATE`) within a single database transaction. This ensures that both operations must succeed together. If either fails, the entire transaction should be rolled back.",
+            "dependencies": [
+              "9.4"
+            ],
+            "details": "Use the underlying `sqlite` driver's transaction capabilities. Wrap the sequence of database writes in a `try/catch` block. Start with `await db.exec('BEGIN')`, execute the `INSERT` and `UPDATE`, and then `await db.exec('COMMIT')`. In the `catch` block, execute `await db.exec('ROLLBACK')` before re-throwing the error.",
+            "status": "pending",
+            "testStrategy": "Simulate a failure during the `UPDATE` step (e.g., by providing invalid data that violates a constraint, if one existed). Verify that the `INSERT` into `metadata_versions` is rolled back and no new version record is persisted in the database."
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Frontend: Display Full Metadata and Version History",
+        "description": "Enhance the image detail view in the React frontend to display all new metadata fields and the version history.",
+        "details": "In the relevant React component (e.g., `ImageDetail.jsx`): 1. Add UI elements to display the new fields from the API: `creator`, `description`, `width`, `height`. 2. Add a new 'History' or 'Versions' section. On component mount, fetch data from the `/api/images/:id/versions` endpoint. 3. Render the list of versions, showing `version`, `edited_at`, and `edited_by`. Add a 'Revert to this version' button for each past version.",
+        "testStrategy": "Select an image with known extended metadata and version history. Verify that all fields, including creator and dimensions, are displayed correctly. Check that the versions list populates and that clicking the 'Revert' button successfully triggers the API call.",
+        "priority": "medium",
+        "dependencies": [
+          2,
+          8
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Fetch Version History Data in ImageDetail Component",
+            "description": "In the `ImageDetail.jsx` component, introduce a new state variable for version history (e.g., `versions`). In the `useEffect` hook, alongside the existing image data fetch, add a new API call to fetch data from the `/api/images/:id/versions` endpoint. Manage separate loading and error states for this new data stream.",
+            "dependencies": [],
+            "details": "Locate the primary `useEffect` in `src/components/ImageDetail.jsx`. Add `const [versions, setVersions] = useState([]);` and corresponding loading/error states. Use `axios.get(`/api/images/${id}/versions`)` to populate the new state. Ensure this fetch is triggered when the component mounts or the `id` parameter changes.",
+            "status": "pending",
+            "testStrategy": "Load an image detail page and use browser developer tools to verify that a network request is made to `/api/images/:id/versions`. Confirm that the component's `versions` state is populated with the expected array of version objects."
+          },
+          {
+            "id": 2,
+            "title": "Display Extended Metadata Fields",
+            "description": "In the `ImageDetail.jsx` component, add UI elements to display the newly available metadata fields: `creator`, `description`, `width`, and `height`. These should be placed in a logical location within the existing metadata display area.",
+            "dependencies": [],
+            "details": "In the JSX returned by `ImageDetail.jsx`, find where existing metadata like `primary_subject` or `notes` is rendered. Add new elements (e.g., `<p>`, `<div>`, or list items) to display `image.creator`, `image.description`, and the dimensions (`image.width` x `image.height`).",
+            "status": "pending",
+            "testStrategy": "Navigate to an image detail page for an image with known extended metadata. Verify that the creator, description, width, and height are all displayed correctly and legibly."
+          },
+          {
+            "id": 3,
+            "title": "Render the Version History List",
+            "description": "Create a new UI section labeled 'Version History' or 'Versions'. Within this section, map over the `versions` state array fetched in the first subtask. For each version object, render the `version` number, `edited_at` timestamp, and `edited_by` user.",
+            "dependencies": [
+              "10.1"
+            ],
+            "details": "Below the main image metadata, add a new container (e.g., `<div className=\"version-history\">`). Use `versions.map()` to iterate and render the data. Format the `edited_at` timestamp into a user-friendly string (e.g., using `new Date().toLocaleString()`).",
+            "status": "pending",
+            "testStrategy": "On an image detail page, check that the 'Version History' section appears. Verify that it correctly lists all historical versions from the API, showing the version number, a readable date/time, and the editor's name for each entry."
+          },
+          {
+            "id": 4,
+            "title": "Implement 'Revert to Version' Button and API Call",
+            "description": "For each past version rendered in the history list, add a 'Revert to this version' button. Implement the `onClick` handler for this button to make a `POST` request to a new API endpoint, `/api/images/:id/revert`, passing the specific `version_id` to be restored.",
+            "dependencies": [
+              "10.3"
+            ],
+            "details": "Inside the `versions.map()` function, add a `<button>`. The button should be disabled for the most recent version. The `onClick` handler should be an async function that calls `axios.post(`/api/images/${id}/revert`, { version_id: version.id })`. Include basic error handling, such as logging errors to the console.",
+            "status": "pending",
+            "testStrategy": "Click the 'Revert' button on a past version. Use browser developer tools to confirm that a `POST` request is sent to the correct `/api/images/:id/revert` endpoint with the correct `version_id` in the request body."
+          },
+          {
+            "id": 5,
+            "title": "Handle Post-Revert UI Updates and User Feedback",
+            "description": "After a successful revert API call, provide feedback to the user and update the view. The component should automatically refetch the main image's metadata to display the newly reverted data. Display a success message or toast notification to confirm the action was completed.",
+            "dependencies": [
+              "10.4"
+            ],
+            "details": "In the `onClick` handler for the revert button, after the `axios.post` call succeeds, trigger a refetch of the main image data (e.g., by calling the `fetchImage` function again). Also, trigger a refetch of the version history to show the new 'current' version. Implement a simple `alert('Revert successful!')` or integrate with a project-wide notification system if one exists.",
+            "status": "pending",
+            "testStrategy": "After clicking 'Revert', verify that the metadata displayed on the page (e.g., `primary_subject`, `notes`) updates to reflect the state of the version that was reverted to. Check that a success message is shown. Refreshing the page should show the same reverted data."
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Frontend: Implement Inline Editing for Metadata",
+        "description": "Add an 'Edit Mode' to the image detail view that allows users to modify metadata fields and save their changes.",
+        "details": "In the `ImageDetail.jsx` component: 1. Add an 'Edit' button that toggles an `isEditing` state. 2. When `isEditing` is true, render form inputs (e.g., `<input>`, `<textarea>`) for editable fields like `primary_subject`, `notes`, `tags`, etc., pre-filled with current values. 3. Add a 'Save' button that, when clicked, gathers the form data and sends it via a `PUT` request to `/api/images/:id/metadata`. 4. On successful save, exit edit mode and display a success toast. On failure, display an error toast.",
+        "testStrategy": "Click the 'Edit' button, change a text field and a tag, and click 'Save'. Verify the UI updates with the new data. Refresh the page and confirm the changes have persisted. Check the network tab to ensure the `PUT` request was sent correctly and that a new version was created (via the version history UI).",
+        "priority": "medium",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add State and UI Controls for Toggling Edit Mode",
+            "description": "In `ImageDetail.jsx`, introduce a new state variable `isEditing` defaulting to `false`. Add an 'Edit' button that sets `isEditing` to `true`. When editing, replace the 'Edit' button with 'Save' and 'Cancel' buttons.",
+            "dependencies": [],
+            "details": "Use the `useState` hook to manage the `isEditing` state. Conditionally render the buttons based on this state. The 'Cancel' button should simply set `isEditing` back to `false` without saving any changes.",
+            "status": "pending",
+            "testStrategy": "Load the image detail page. Verify the 'Edit' button is visible. Click it and confirm it is replaced by 'Save' and 'Cancel' buttons. Click 'Cancel' and verify the 'Edit' button reappears."
+          },
+          {
+            "id": 2,
+            "title": "Implement the Editable Form View",
+            "description": "When `isEditing` is true, replace the static metadata display fields (`primary_subject`, `notes`, `tags`, etc.) with controlled form inputs (`<input>`, `<textarea>`).",
+            "dependencies": [
+              "11.1"
+            ],
+            "details": "Create a `formData` state, initialized with the current image metadata when edit mode is activated. Bind the value of each form input to the corresponding field in `formData` and create an `onChange` handler to update the state as the user types. The 'Cancel' button should also reset this form state.",
+            "status": "pending",
+            "testStrategy": "Click the 'Edit' button. Verify that text fields become editable inputs pre-filled with the correct data. Type into an input and verify the component's state updates."
+          },
+          {
+            "id": 3,
+            "title": "Develop the `handleSave` Function and API Call",
+            "description": "Create an asynchronous `handleSave` function that is triggered by the 'Save' button. This function will gather the data from the `formData` state and send it in a `PUT` request to the `/api/images/:id/metadata` endpoint.",
+            "dependencies": [
+              "11.2"
+            ],
+            "details": "The `handleSave` function should construct a payload object from the `formData` state. Use the existing API service layer (likely using `axios` or `fetch`) to make the `PUT` request. The image ID can be retrieved from the component's props or URL parameters.",
+            "status": "pending",
+            "testStrategy": "With the browser's developer tools open, click 'Save'. Check the Network tab to confirm a `PUT` request is sent to the correct URL (`/api/images/:id/metadata`) with a JSON body containing the modified data."
+          },
+          {
+            "id": 4,
+            "title": "Handle Successful Save and Update UI",
+            "description": "Upon a successful response from the `PUT` request, update the component's state to reflect the changes and exit edit mode.",
+            "dependencies": [
+              "11.3"
+            ],
+            "details": "In the `handleSave` function's success handler, update the primary `image` state with the data returned from the API. Then, set `isEditing` to `false` to return to the read-only view. Display a success toast notification to the user.",
+            "status": "pending",
+            "testStrategy": "Modify a field, click 'Save', and verify that the view returns to read-only mode, the UI displays the updated information, and a 'Save successful' message appears."
+          },
+          {
+            "id": 5,
+            "title": "Implement Error Handling and Feedback",
+            "description": "In the `handleSave` function, add error handling for the API call. If the request fails, keep the user in edit mode and display an appropriate error toast.",
+            "dependencies": [
+              "11.3"
+            ],
+            "details": "Wrap the API call in a `try...catch` block. In the `catch` block, use the application's toast notification system to display an error message (e.g., 'Failed to save changes. Please try again.'). The form should remain populated with the user's attempted changes.",
+            "status": "pending",
+            "testStrategy": "Use browser developer tools to simulate a network failure for the `PUT` request. Click 'Save' and verify that the form remains in edit mode and an error message is displayed to the user."
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Frontend: Refine Filters and Default Sorting",
+        "description": "Improve the user experience by tightening filter controls and setting the default sort order to show the most recent images first.",
+        "details": "1. In the main image gallery component, modify the default API query to sort by `created_date` in descending order. Ensure all data fetching logic respects this as the default. 2. In the `FilterPanel.jsx` component, review the layout. Ensure the most commonly used filters (Quality, Scores, Activity, People) are visible by default. Other, less-used filters can be collapsed.",
+        "testStrategy": "Load the main gallery page. Verify that the images are sorted from newest to oldest by default. Interact with the filters and then clear them; confirm the sort order returns to the default. Check that the filter panel layout is more compact and user-friendly.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update Data Fetching Hook with Default Sort Order",
+            "description": "Locate the primary data fetching hook or function responsible for querying the `/api/images` endpoint. Modify its default parameters to include `sort_by=created_date` and `sort_order=desc` to ensure all new data fetches default to showing the most recent images first.",
+            "dependencies": [],
+            "details": "In the custom hook managing API requests for images (likely `src/hooks/useImageQuery.js` or similar), find where the query parameters are constructed. Add `sort_by: 'created_date'` and `sort_order: 'desc'` as the default values if they are not already provided.",
+            "status": "pending",
+            "testStrategy": "Check the network tab in the browser's developer tools when the application first loads. Verify that the initial request to `/api/images` includes the query parameters `sort_by=created_date` and `sort_order=desc`."
+          },
+          {
+            "id": 2,
+            "title": "Align Gallery Component State with New Default Sort",
+            "description": "In the main image gallery component (e.g., `ImageGallery.jsx`), adjust the initial state for sorting to match the new default (`created_date`, `desc`). This ensures that UI controls for sorting reflect the default state and that any 'clear filters' or 'reset' functionality correctly reverts to this new default.",
+            "dependencies": [
+              "12.1"
+            ],
+            "details": "The component managing the gallery view likely holds filter and sort state. Update the `useState` or equivalent state management initializer for sorting to `{ sortBy: 'created_date', sortOrder: 'desc' }`. Also, trace the 'Clear Filters' button's `onClick` handler to ensure it resets the sort state to these new defaults.",
+            "status": "pending",
+            "testStrategy": "Load the page and observe that any sort-order selection UI (e.g., a dropdown) correctly shows 'Date Created (Newest First)' as the default. Change the sort order, then click 'Clear Filters' and verify the UI and the image order both revert to the default."
+          },
+          {
+            "id": 3,
+            "title": "Create a Reusable Collapsible Section Component",
+            "description": "To improve the layout of the filter panel, create a new, reusable component named `CollapsibleFilterSection.jsx`. This component will manage its own open/closed state and will be used to wrap less-frequently used filter groups.",
+            "dependencies": [],
+            "details": "Create a new file `src/components/CollapsibleFilterSection.jsx`. The component should accept `title`, `children`, and an optional `defaultOpen` prop. It should render a header with the title and a toggle icon (e.g., a chevron). Clicking the header should toggle the visibility of the `children`. Use a local `useState` hook to manage the open/closed state.",
+            "status": "pending",
+            "testStrategy": "Create a story in Storybook or a temporary test page to render the `CollapsibleFilterSection` component. Verify that it renders correctly, that clicking the title toggles the visibility of its children, and that the `defaultOpen` prop works as expected."
+          },
+          {
+            "id": 4,
+            "title": "Integrate Collapsible Sections into FilterPanel.jsx",
+            "description": "Refactor `FilterPanel.jsx` to use the new `CollapsibleFilterSection` component. Keep primary filters (Quality, Scores, Activity, People) always visible, and wrap secondary filter groups in collapsible sections.",
+            "dependencies": [
+              "12.3"
+            ],
+            "details": "In `FilterPanel.jsx`, import the `CollapsibleFilterSection` component. Identify the JSX for less-used filter groups like 'Date Range', 'Camera Details', and 'Location'. Wrap each of these groups in a `<CollapsibleFilterSection>` instance, providing an appropriate `title`. Ensure the primary filters remain outside of any collapsible sections for immediate visibility.",
+            "status": "pending",
+            "testStrategy": "Load the main gallery page and inspect the filter panel. Verify that 'Quality', 'Scores', 'Activity', and 'People' filters are visible by default. Confirm that other filter groups are collapsed under titles like 'Date Range'. Test toggling each section to ensure the filters within become visible and usable."
+          },
+          {
+            "id": 5,
+            "title": "End-to-End Test of Sorting and Filter Panel UI",
+            "description": "Perform a full user-flow test to ensure the new default sorting and the refactored filter panel work together seamlessly and have not introduced regressions.",
+            "dependencies": [
+              "12.2",
+              "12.4"
+            ],
+            "details": "This task involves manual testing of the integrated features. The flow should be: 1. Load page, verify default sort. 2. Open a collapsible filter section, apply a filter, verify results. 3. Close the section, verify filter remains active. 4. Change the sort order. 5. Click 'Clear Filters' and verify the view returns to the default sort order and all filters are cleared, including those in collapsed sections.",
+            "status": "pending",
+            "testStrategy": "Follow the steps outlined in the details. Pay close attention to the network requests to confirm the correct query parameters are being sent at each stage. Ensure the UI state (filter inputs, sort dropdowns, collapsible section state) is consistent with the displayed image results."
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Integrate Together AI as a Vision Provider",
+        "description": "Add support for Together AI as a new vision provider for image analysis, including configuration, client implementation, and error handling.",
+        "details": "1. Create `image_processor/vision/together_client.py`. Implement a class that takes an API key and model ID. It should have a method that accepts a base64 image and a prompt, and calls the Together AI chat/completions endpoint. 2. Add `TOGETHER_API_KEY` to the environment configuration (`.env.example`, Railway secrets). 3. Update `VisionModelConfig` to accept `provider: 'together'`. 4. In the client, implement retry logic with exponential backoff for 429/5xx errors. 5. In the main processor, add logic to instantiate and use `TogetherVisionClient` when configured.",
+        "testStrategy": "Configure the processor to use Together AI. Process a test batch of 20 images. Verify that ≥95% are processed successfully and return valid JSON conforming to the schema. Check logs for any retry attempts and successful completion.",
+        "priority": "medium",
+        "dependencies": [
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update Configuration for Together AI Provider",
+            "description": "Modify the application's configuration to recognize 'together' as a valid vision provider and to handle its specific API key.",
+            "dependencies": [],
+            "details": "In `image_processor/config.py`, update the `VisionModelConfig` Pydantic model. Add `'together'` to the `Literal` type hint for the `provider` field. In the project root, add `TOGETHER_API_KEY=` to the `.env.example` file to document the new required environment variable.",
+            "status": "pending",
+            "testStrategy": "Verify that setting `provider: 'together'` in the configuration file is now valid and does not raise a Pydantic validation error. Check that the `.env.example` file contains the new `TOGETHER_API_KEY` entry."
+          },
+          {
+            "id": 2,
+            "title": "Create TogetherVisionClient Class Skeleton",
+            "description": "Create the new client file and define the basic class structure for the Together AI vision client, ensuring it conforms to the existing client abstraction.",
+            "dependencies": [
+              "13.1"
+            ],
+            "details": "Create a new file: `image_processor/vision/together_client.py`. In this file, define a class `TogetherVisionClient` that inherits from `image_processor.vision.base.BaseVisionClient`. Implement the `__init__` method to accept an instance of `VisionModelConfig` and store the API key and model ID. Implement a placeholder `analyze_image` method that satisfies the abstract base class requirements.",
+            "status": "pending",
+            "testStrategy": "Instantiate `TogetherVisionClient` with a valid mock `VisionModelConfig` object. Verify that the class can be created without errors and that the api_key and model_id attributes are set correctly."
+          },
+          {
+            "id": 3,
+            "title": "Implement API Call Logic in analyze_image",
+            "description": "Implement the core logic within the `analyze_image` method to communicate with the Together AI chat completions endpoint.",
+            "dependencies": [
+              "13.2"
+            ],
+            "details": "In `image_processor/vision/together_client.py`, fully implement the `analyze_image` method. Use a library like `httpx` to make a POST request to the Together AI API. The request payload should be structured according to the Together AI documentation for multimodal chat completions, including the model, prompt, and the base64-encoded image data. Parse the JSON response and return the content as a dictionary.",
+            "status": "pending",
+            "testStrategy": "Write a unit test that calls `analyze_image` with a mock base64 image and prompt. Mock the `httpx.post` call and verify that the request URL, headers (including Authorization), and body are formatted correctly for the Together AI API."
+          },
+          {
+            "id": 4,
+            "title": "Add Retry Logic with Exponential Backoff",
+            "description": "Enhance the `TogetherVisionClient` with robust error handling by implementing retry logic for transient API errors.",
+            "dependencies": [
+              "13.3"
+            ],
+            "details": "In `image_processor/vision/together_client.py`, import the `backoff` library. Apply the `@backoff.on_exception` decorator to the `analyze_image` method. Configure it for exponential backoff (`backoff.expo`) on specific HTTP status exceptions (e.g., 429, 500, 502, 503, 504) that may be raised by the HTTP client library. This should mirror the pattern used in `claude_client.py`.",
+            "status": "pending",
+            "testStrategy": "In a unit test, mock the HTTP client to raise a 429 or 503 error. Verify that the `analyze_image` method is called multiple times according to the backoff strategy."
+          },
+          {
+            "id": 5,
+            "title": "Integrate TogetherVisionClient into Main Processor",
+            "description": "Update the main application logic to instantiate and use the new `TogetherVisionClient` when the configuration specifies 'together' as the provider.",
+            "dependencies": [
+              "13.2"
+            ],
+            "details": "In `image_processor/main.py`, import the `TogetherVisionClient`. Modify the `get_vision_client` factory function to include a new condition: if `config.provider == 'together'`, it should instantiate and return `TogetherVisionClient(config)`. Ensure the logic for loading the `TOGETHER_API_KEY` from the environment and passing it into the `VisionModelConfig` is correctly handled.",
+            "status": "pending",
+            "testStrategy": "Configure the application to use `provider: 'together'`. Run the main processing script. Verify through logs or a debugger that an instance of `TogetherVisionClient` is created and its `analyze_image` method is called."
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Legacy Code and Repository Cleanup",
+        "description": "Remove deprecated code, routes, and configuration files to simplify the codebase and align with the current single-database, Railway-hosted architecture.",
+        "details": "1. Search for and remove any remaining React components, server routes, or UI elements related to multi-database switching (e.g., `DatabasePicker`). 2. Delete outdated Docker and DigitalOcean configuration files from the repository, moving any useful historical context to `archive/`. 3. Clean up the repo's root directory by removing old DB snapshots. Ensure `.gitignore` is updated to ignore `*.db` files outside of the canonical `web-app/image_metadata.db`. 4. Create a `databases/README.md` explaining the backup strategy.",
+        "testStrategy": "Use `ripgrep` or a similar tool to search for 'DatabasePicker' and other related keywords; confirm no results are found in the active codebase. Manually inspect the repository to ensure old config files and DB snapshots are gone. Run the application and build process to ensure no errors are introduced.",
+        "priority": "low",
+        "dependencies": [
+          10,
+          11,
+          12,
+          13
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Remove Frontend Database Switching Component",
+            "description": "Delete the `DatabasePicker.jsx` component and remove all references to it from the application, simplifying the UI to use a single, non-selectable database.",
+            "dependencies": [],
+            "details": "Locate and delete `web-app/src/components/DatabasePicker.jsx`. Edit `web-app/src/App.jsx` and any other parent components to remove the import and usage of `DatabasePicker`. Remove any state management logic (e.g., `useState` hooks) related to the selected database.",
+            "status": "pending",
+            "testStrategy": "Run the frontend development server (`npm run dev`) and verify the application loads without errors and that no database selection UI is visible."
+          },
+          {
+            "id": 2,
+            "title": "Remove Backend Database Selection Route and Logic",
+            "description": "Eliminate the server-side API endpoint and logic for switching database connections, hardcoding the application to use the single canonical database file.",
+            "dependencies": [
+              "14.1"
+            ],
+            "details": "In `web-app/server/server.js`, remove the `POST /api/select-database` route handler. In `web-app/server/db.js` (or equivalent database connection module), remove any logic that dynamically sets the database path based on session or request data. Hardcode the connection to point directly to `web-app/image_metadata.db`.",
+            "status": "pending",
+            "testStrategy": "Start the server and use a tool like `curl` or Postman to attempt to `POST` to `/api/select-database`. Verify that it returns a 404 Not Found error. Ensure all other API endpoints that rely on the database still function correctly."
+          },
+          {
+            "id": 3,
+            "title": "Delete Obsolete Docker and DigitalOcean Configuration",
+            "description": "Remove all Docker and DigitalOcean-related deployment and configuration files from the repository to eliminate confusion and reflect the current Railway-only hosting strategy.",
+            "dependencies": [],
+            "details": "Delete the following files and directories from the project root: `Dockerfile`, `docker-compose.yml`, and the `.do/` directory. Before deleting, review their contents for any valuable configuration or scripts that should be moved to an `archive/` directory for historical reference.",
+            "status": "pending",
+            "testStrategy": "List the files in the project's root directory and confirm that `Dockerfile`, `docker-compose.yml`, and `.do/` are no longer present. Check the git history to confirm the deletion."
+          },
+          {
+            "id": 4,
+            "title": "Clean Up Root Directory and Refine .gitignore",
+            "description": "Remove legacy database snapshot files from the project root and update the `.gitignore` file to prevent new snapshots from being accidentally committed.",
+            "dependencies": [],
+            "details": "Delete all files matching the pattern `*.db` from the project's root directory. Modify the `.gitignore` file to add the line `*.db` to ignore all database files, and then add `!/web-app/image_metadata.db` on a new line to explicitly un-ignore the canonical database file, ensuring it remains in version control.",
+            "status": "pending",
+            "testStrategy": "Run `git status` and confirm that no old `*.db` files are listed as untracked or deleted. Create a new test file `test.db` in the root and verify that `git status` ignores it, while `web-app/image_metadata.db` remains tracked."
+          },
+          {
+            "id": 5,
+            "title": "Create Database Backup Strategy Documentation",
+            "description": "Create a `README.md` file within a new `databases/` directory to document the project's database location and backup strategy.",
+            "dependencies": [
+              "14.2",
+              "14.4"
+            ],
+            "details": "Create a new directory named `databases` in the project root. Inside this directory, create a `README.md` file. The content should explain that `web-app/image_metadata.db` is the single source of truth and describe the backup process (e.g., manual backups, Railway's automatic snapshots, etc.).",
+            "status": "pending",
+            "testStrategy": "Verify that the `databases/README.md` file exists and its content accurately describes the current database architecture and backup plan."
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Update Project Documentation",
+        "description": "Update the main README.md and other relevant documentation to reflect the new features and simplified architecture.",
+        "details": "1. Update `README.md` to describe the new reprocessing CLI, including all arguments (`--mode`, `--limit`, etc.). 2. Add setup instructions for the `TOGETHER_API_KEY` environment variable. 3. Remove any instructions related to multi-database setup or DigitalOcean deployment. 4. Ensure the documented setup process reflects the current, simplified state of the project. 5. Add a note about the metadata versioning feature.",
+        "testStrategy": "Give the updated `README.md` to a new developer (or pretend to be one). Follow the setup and usage instructions from scratch. Verify that the application can be set up and run successfully and that all new features are clearly explained.",
+        "priority": "low",
+        "dependencies": [
+          14
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Streamline README.md Setup and Installation Section",
+            "description": "Remove outdated and complex instructions from README.md, such as DigitalOcean deployment and multi-database configurations, and simplify the local setup guide to reflect the current architecture.",
+            "dependencies": [],
+            "details": "Edit the `README.md` file. Delete any sections or instructions related to deploying on DigitalOcean or configuring multiple databases. Rewrite the 'Setup' or 'Installation' section to present a simplified process: 1. Clone the repository. 2. Create and activate a Python virtual environment. 3. Install dependencies from `requirements.txt`.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Document TOGETHER_API_KEY Environment Variable",
+            "description": "Add instructions to the updated setup section in README.md for configuring the necessary `TOGETHER_API_KEY` environment variable.",
+            "dependencies": [
+              "15.1"
+            ],
+            "details": "In the streamlined 'Setup' section of `README.md`, add a new subsection for 'Configuration'. Explain that the `TOGETHER_API_KEY` is required for the vision model analysis. Provide a clear example of how to set this environment variable, recommending the use of a `.env` file that is loaded by the application.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Document Reprocessing CLI Usage and Arguments",
+            "description": "Update the 'Usage' section of README.md to describe the new `reprocess` command and its arguments, including modes and limits, based on the implementation in `image_processor/main.py`.",
+            "dependencies": [
+              "15.1"
+            ],
+            "details": "Create or overhaul the 'Usage' section in `README.md`. Document the primary command: `python -m image_processor.main reprocess`. Detail the arguments confirmed from `image_processor/main.py`: `--mode` (explaining the `upsert`, `archive-existing`, `clear-first` choices) and `--limit N`. Provide a clear example for a basic reprocessing run.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Add Note on Metadata Versioning Feature",
+            "description": "Add a brief section to the README.md explaining the new metadata versioning system and how it preserves the history of changes.",
+            "dependencies": [
+              "15.3"
+            ],
+            "details": "In a suitable location in `README.md`, such as a new 'Key Features' section or as part of the `--mode archive-existing` description, add a note about metadata versioning. Explain that the `metadata_versions` table stores a complete history of metadata changes, linking this feature to its activation via the `archive-existing` reprocessing mode.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Explain Advanced CLI Features: Batching and Resumability",
+            "description": "Expand the 'Usage' section in README.md to cover the advanced operational features of the CLI, specifically batch processing and the automatic/manual resume capabilities.",
+            "dependencies": [
+              "15.3"
+            ],
+            "details": "In the 'Usage' section of `README.md`, add details for advanced arguments. Document `--batch-size N` and explain its role in managing memory during large runs. Describe the automatic checkpointing and resumability feature that allows recovery from interruptions. Also, explain the manual `--resume-from <file_id>` flag for targeted processing.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-13T05:36:33.341Z",
+      "updated": "2025-08-13T05:36:33.341Z",
+      "description": "Tasks for project-final-polish context"
+    }
+  }
+}

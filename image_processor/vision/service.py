@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, List
 from pathlib import Path
 
-from .client import VisionClient
+from .claude_client import ClaudeVisionClient as VisionClient
 from ..core.config import Config
 from ..core.models import MediaFile, ExtractedMetadata, ProcessingStatus
 from ..database import DatabaseConnection, FileRepository, MetadataRepository, ActivityTagRepository
@@ -95,11 +95,16 @@ class VisionAnalysisService:
                     file_id=file_id
                 )
                 
-                # Save metadata to database
-                self.metadata_repo.create(extracted_metadata)
+                # Save metadata to database (idempotent)
+                self.metadata_repo.upsert(extracted_metadata)
                 
                 # Save activity tags
                 if extracted_metadata.activity_tags:
+                    # Replace tags to avoid stale entries from previous runs
+                    try:
+                        self.activity_tag_repo.remove_tags(file_id)
+                    except Exception:
+                        pass
                     self.activity_tag_repo.add_tags(file_id, extracted_metadata.activity_tags)
                 
                 # Update file status to completed

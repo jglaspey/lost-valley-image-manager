@@ -1,6 +1,6 @@
 """Database schema definitions for Google Drive Image Processor."""
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
 -- Schema version tracking
@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS files (
     processing_status TEXT DEFAULT 'pending' CHECK (processing_status IN ('pending', 'in_progress', 'completed', 'failed')),
     processed_at TIMESTAMP,
     thumbnail_path TEXT,
+    creator TEXT,
+    description TEXT,
     error_message TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -46,7 +48,7 @@ CREATE TABLE IF NOT EXISTS metadata (
     time_of_day TEXT CHECK (time_of_day IN ('morning', 'midday', 'evening', 'unclear')),
     mood_energy TEXT,
     color_palette TEXT,
-    notes TEXT,
+    file_path_notes TEXT,
     extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(file_id)
 );
@@ -74,6 +76,17 @@ CREATE TABLE IF NOT EXISTS processing_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Metadata versions table: Track user-edit version history
+CREATE TABLE IF NOT EXISTS metadata_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    data_json TEXT NOT NULL,
+    edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    edited_by TEXT,
+    UNIQUE(file_id, version)
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_files_status ON files(processing_status);
 CREATE INDEX IF NOT EXISTS idx_files_drive_id ON files(drive_file_id);
@@ -86,6 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_metadata_people ON metadata(has_people, people_co
 CREATE INDEX IF NOT EXISTS idx_tags_file_id ON activity_tags(file_id);
 CREATE INDEX IF NOT EXISTS idx_tags_name ON activity_tags(tag_name);
 CREATE INDEX IF NOT EXISTS idx_history_file_id ON processing_history(file_id);
+CREATE INDEX IF NOT EXISTS idx_versions_file_id ON metadata_versions(file_id);
 
 -- Triggers to update the updated_at timestamp
 CREATE TRIGGER IF NOT EXISTS update_files_timestamp 
@@ -170,6 +184,44 @@ def migrate_schema(connection):
             
             connection.commit()
             print("Added width and height fields to files table")
+
+        # Migration from version 3 to 4: Add creator/description and metadata_versions table
+        if current_version < 4:
+            cursor = connection.cursor()
+
+            # Add new nullable columns to files if they do not exist
+            # SQLite doesn't support IF NOT EXISTS for ADD COLUMN, so we guard in Python
+            cursor.execute("PRAGMA table_info(files)")
+            existing_cols = {row[1] for row in cursor.fetchall()}
+            if 'creator' not in existing_cols:
+                cursor.execute("ALTER TABLE files ADD COLUMN creator TEXT")
+            if 'description' not in existing_cols:
+                cursor.execute("ALTER TABLE files ADD COLUMN description TEXT")
+
+            # Create metadata_versions table
+            cursor.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS metadata_versions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+                    version INTEGER NOT NULL,
+                    data_json TEXT NOT NULL,
+                    edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    edited_by TEXT,
+                    UNIQUE(file_id, version)
+                );
+                CREATE INDEX IF NOT EXISTS idx_versions_file_id ON metadata_versions(file_id);
+                """
+            )
+
+            # Update schema version
+            cursor.execute(
+                "INSERT INTO schema_version (version) VALUES (?)",
+                (4,)
+            )
+
+            connection.commit()
+            print("Added creator/description to files and created metadata_versions table")
         
         print(f"Schema migration complete to version {SCHEMA_VERSION}")
     else:

@@ -1,0 +1,109 @@
+Title: Final Polish for Lost Valley Image Manager
+
+Overview:
+Finish the image management system by: reprocessing all Google Drive images; enriching records with native Drive metadata (creator, description, dimensions, created/modified); reviewing/refining prompts and optionally adding multi-sample consensus; exposing full metadata in the UI; enabling user edits with version history; tightening filters and default sorting to most recent.
+
+Non-Functional Goals:
+- Safe, repeatable reprocessing with clear controls and logging.
+- Backwards-compatible database migration without data loss.
+- Minimal downtime; ability to dry-run on subsets.
+- Scalable batch processing with resumability for 3k+ images.
+
+Out of Scope:
+- Full auth user system; use existing password-only approach and record editor as "admin".
+- Moving off SQLite.
+
+Tech Context:
+- Python processor with SQLite schema; Google Drive API v3; vision providers: local LLM, Claude, and Together AI (planned migration).
+- Node/Express API over same DB; React + Tailwind frontend.
+
+Detailed Requirements:
+1) Reprocessing Strategy
+- Provide a CLI to reprocess the whole library with options:
+  - upsert (default): update existing metadata in place.
+  - archive-existing: snapshot current metadata into a new versions table before changes.
+  - clear-first: delete metadata and tags for files before re-analysis, then recreate.
+  - limit: process first N images for smoke tests.
+- Writes a processing attempt to processing_history.
+- Batch processing & resumability:
+  - Add --batch-size (default e.g., 100) and process in loops to avoid memory spikes.
+  - Add --resume-from (file id or timestamp) to continue mid-run safely.
+  - Persist checkpoints (last processed id/timestamp) every batch; log progress stats.
+  - Idempotency: skip processing_status = completed unless --force or --clear-first is provided.
+  - Concurrency controls (config): max in-flight analyses, exponential backoff on provider 429/5xx.
+  - Hard timeouts per analysis; on timeout, mark failed with error_message and continue.
+
+2) Google Drive Metadata Enrichment
+- Extend Drive fields fetched to include: description; owners(displayName,emailAddress); lastModifyingUser(displayName,emailAddress); imageMediaMetadata(width,height,cameraMake,cameraModel,time) or videoMediaMetadata(width,height,time).
+- Persist creator and description to files table; prefer owners[0].displayName; fallback to lastModifyingUser.displayName or owners email.
+- If Drive reports dimensions, store width/height at discovery time; keep thumbnail pipeline fallback.
+
+3) Database Changes
+- Add columns (nullable) to files: creator TEXT, description TEXT.
+- Add metadata_versions table for audit/version history of user edits: id, file_id (FK), version, data_json, edited_at default now, edited_by TEXT, unique(file_id,version).
+- Migration path for existing DB to new schema version (v4).
+
+4) Prompt Review and Optional Consensus
+- Ensure local and Claude prompts yield a consistent, strict JSON shape matching schema: primary_subject, has_people, people_count, is_indoor, activity_tags, visual_quality, social_media_score, social_media_reason, marketing_score, marketing_use, season?, time_of_day?, mood_energy?, color_palette?, notes?.
+- Tighten instructions to “return only JSON”; include schema constraints and valid enums.
+- Add optional consensus mode: run multiple analyses per image and merge (scores median; booleans majority; tags validated union; text preferring longer/first reasonable) when a config flag is set.
+
+5) API Enhancements (Node/Express)
+- Add endpoints:
+  - GET /api/images/:id/versions: list prior versions with version, edited_at, edited_by.
+  - POST /api/images/:id/versions/:version/revert: restore a prior snapshot; create a new version capturing the revert action.
+- On PUT /api/images/:id/metadata: before updating, snapshot current merged metadata+tags into metadata_versions as next version (edited_by = 'admin').
+
+6) Frontend Enhancements (React)
+- Image detail sidebar shows: filename, file_path, file_size, width×height, created_date, modified_date, creator, drive links; and AI: primary_subject, visual_quality, social_media_score + reason, marketing_score + use, has_people + people_count, is_indoor, season, time_of_day, mood_energy, color_palette, notes, activity_tags.
+- Add Edit mode with inline form controls; save pushes PUT /api/images/:id/metadata; toasts on success.
+- Add Versions section with list and Revert action.
+- Filters: keep key quick filters; default open Quality/Scores/Activity/People; ensure default sort=created_date DESC everywhere.
+
+7) Legacy Code and Database Cleanup (End of project)
+- Remove unused or superseded code and database artifacts:
+  - Delete multi-DB switching UI remnants and any unused components that are not referenced (confirm that DatabasePicker and related routes remain removed). Keep archive/ as archival unless explicitly retired, but purge duplicate dead code if it’s causing confusion.
+  - Remove server routes that supported multi-DB selection if any remain; confirm only the single DB path is used.
+  - Prune outdated Docker/DO configs if fully replaced by Railway (retain docs as history in archive/ if needed).
+  - Delete unused SQLite DB snapshots from repo except the canonical web-app/image_metadata.db used in production; move snapshots to databases/ backup or .gitignore them.
+  - Add a small maintenance script/README notes describing what is kept vs. removed and where backups live.
+- Acceptance:
+  - ripgrep/build confirms no references to removed components/routes.
+  - Repo contains only the single active DB file plus documented backups in databases/ (or outside VCS).
+  - README reflects the simplified, single-DB, Railway-first setup.
+
+8) Together AI Integration (Inference Provider Migration)
+- Add a new provider option for the vision client to call Together.ai instead of local/Claude:
+  - Config: extend VisionModelConfig with provider: 'local' | 'claude' | 'together', model_id, max_concurrency, timeout_seconds.
+  - Secrets: TOGETHER_API_KEY in environment; document setup in README.
+  - Client: implement TogetherVisionClient (e.g., image_processor/vision/together_client.py) using Together’s chat/completions with image input (base64) and strict JSON prompts shared with other providers.
+  - Retries & backoff: handle 429/5xx with exponential backoff and jitter; respect provider rate limits.
+  - Cost/throughput logging: record per-image latency and estimated token usage if available; aggregate per-batch stats.
+  - Fallback chain: if Together errors exceed a threshold, optionally fall back to Claude/local (feature-flag).
+- Batching & scale alignment:
+  - Honor --batch-size, --max-concurrency to reach steady throughput without overloading provider.
+  - Maintain identical output schema to avoid UI/backend changes.
+- Acceptance:
+  - Processing a test set (e.g., 50 images) via Together returns valid JSON for ≥95% without manual fixes.
+  - End-to-end reprocess with Together under batch-mode completes with acceptable error rate and logged stats.
+
+Acceptance Criteria:
+- Reprocess CLI completes across entire dataset without unique constraint errors.
+- files.creator and files.description populated where Drive has data; width/height present for majority.
+- UI shows all fields; editing persists; version history visible and revert restores previous state.
+- Default sort is most recent; filters feel focused and compact.
+- Consensus mode can be enabled via config and reduces contradictory fields on a test set.
+
+Risks & Mitigations:
+- Drive permissions may hide owners; fallback to lastModifyingUser.
+- Rate limiting: backoff already implemented; keep conservative batch sizes.
+- DB growth from versions: acceptable for now; add pruning later.
+
+Deliverables:
+- Schema migration + updated repos.
+- Drive service updates + CLI reprocess entry point.
+- API versions endpoints + pre-update snapshotting.
+- Frontend detail/edit/versions UI + filter tweaks.
+- Documentation updates to README/PROGRESS.
+
+
