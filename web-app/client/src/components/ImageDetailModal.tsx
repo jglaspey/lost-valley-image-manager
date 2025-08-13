@@ -7,6 +7,7 @@ import {
   MapPin,
   Star,
   Tag,
+  RotateCcw,
 } from "lucide-react";
 import {
   Sheet,
@@ -21,6 +22,7 @@ import { Separator } from "./ui/separator";
 import { ProcessedImage } from "../types/image";
 import { AuthenticatedImage } from "./AuthenticatedImage";
 import { activityTagLabels } from "../constants/activityTags";
+import { useState } from "react";
 
 interface ImageDetailModalProps {
   image: ProcessedImage | null;
@@ -34,6 +36,9 @@ export function ImageDetailModal({
   onClose,
 }: ImageDetailModalProps) {
   if (!image) return null;
+
+  const [dimensions, setDimensions] = useState({ width: image.width, height: image.height });
+  const [version, setVersion] = useState(0);
 
   const formatFileSize = (bytes: number) => {
     const mb = bytes / (1024 * 1024);
@@ -90,6 +95,20 @@ export function ImageDetailModal({
     }
   };
 
+  const handleRotate = async () => {
+    try {
+      const response = await fetch(`/api/images/${image.id}/rotate`, {
+        method: "POST",
+        headers: { 'x-password': localStorage.getItem('lv-password') || '' }
+      });
+      if (!response.ok) throw new Error(`Rotate failed: ${response.status}`);
+      setVersion(v => v + 1);
+      setDimensions(({ width, height }) => ({ width: height, height: width }));
+    } catch (err) {
+      console.error('Rotate error', err);
+    }
+  };
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent
@@ -111,13 +130,21 @@ export function ImageDetailModal({
         <div className="h-[calc(100vh-80px)] overflow-y-auto">
           <div className="flex h-full">
             {/* Large Image */}
-            <div className="flex-1 p-4 flex items-center justify-center">
+            <div className="flex-1 p-4 flex items-center justify-center relative">
               <AuthenticatedImage
-                src={image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=1200x900`}
+                src={(image.thumbnail_path || `/api/thumbnails/${image.drive_file_id}?size=1200x900`) + `?v=${version}`}
                 alt={image.primary_subject}
                 className="max-w-full max-h-full object-contain bg-muted/30 rounded-lg"
                 onError={() => {}}
               />
+              <Button
+                variant="secondary"
+                size="icon"
+                className="absolute bottom-4 left-4 bg-white/80"
+                onClick={handleRotate}
+              >
+                <RotateCcw className="w-4 h-4" />
+              </Button>
             </div>
 
             {/* Compact Metadata Sidebar */}
@@ -133,9 +160,9 @@ export function ImageDetailModal({
                 <div className="text-xs text-muted-foreground">
                   {formatFileSize(image.file_size)} • {formatDate(image.created_date)}
                 </div>
-                {(image.width && image.height) && (
+                {(dimensions.width && dimensions.height) && (
                   <div className="text-xs text-muted-foreground">
-                    {image.width} × {image.height} pixels
+                    {dimensions.width} × {dimensions.height} pixels
                   </div>
                 )}
               </div>
