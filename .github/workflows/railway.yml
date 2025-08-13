@@ -20,9 +20,16 @@ jobs:
 
       - name: Install Railway CLI
         run: npm i -g @railway/cli
-      - name: Deploy via Railway
+
+      - name: Login to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway login --token "$RAILWAY_TOKEN"
+
+      - name: Link Railway project
+        env:
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-        run: |
-          railway up --project $RAILWAY_PROJECT_ID --service "lost-valley-image-manager" --environment production --ci
+        run: railway link --project "$RAILWAY_PROJECT_ID"
+
+      - name: Deploy via Railway
+        run: railway up --service "lost-valley-image-manager" --environment production --ci
