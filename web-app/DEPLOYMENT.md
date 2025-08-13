@@ -45,7 +45,7 @@ railway variables set \
 ## Database
 
 - The SQLite file `web-app/image_metadata.db` is checked into the repo for deployment convenience.
-- Server logs print the DB path at boot; the app reads from `/app/web-app/image_metadata.db` in the container.
+- Server logs print the resolved DB path at boot. By default the app uses `/app/web-app/image_metadata.db` in the container, or a custom absolute/relative path from `DATABASE_PATH` (relative paths are resolved from the `web-app/` directory).
 
 ## Thumbnails and Downloads
 

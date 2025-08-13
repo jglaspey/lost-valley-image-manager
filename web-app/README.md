@@ -198,7 +198,7 @@ web-app/
 |----------|-------------|---------|
 | NODE_ENV | Environment mode | development |
 | PORT | Server port | 5000 |
-| DATABASE_PATH | Path to SQLite database | ../image_metadata.db |
+| DATABASE_PATH | Path to SQLite database | ./image_metadata.db |
 | FRONTEND_URL | Frontend URL for CORS | http://localhost:3000 |
 
 ## 🤝 Contributing

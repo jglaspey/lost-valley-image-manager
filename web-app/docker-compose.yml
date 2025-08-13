@@ -10,7 +10,7 @@ services:
       - NODE_ENV=production
       - DATABASE_PATH=/app/data/image_metadata.db
     volumes:
-      - ../image_metadata.db:/app/data/image_metadata.db
+      - ./image_metadata.db:/app/data/image_metadata.db
       - ./uploads:/app/uploads
     restart: unless-stopped
     healthcheck:

@@ -184,7 +184,13 @@ process.on('SIGINT', () => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Database: ${process.env.DATABASE_PATH || '../image_metadata.db'}`);
+  const path = require('path');
+  const resolvedDb = (() => {
+    const envPath = process.env.DATABASE_PATH;
+    if (!envPath) return path.resolve(__dirname, '..', 'image_metadata.db');
+    return path.isAbsolute(envPath) ? envPath : path.resolve(__dirname, '..', envPath);
+  })();
+  console.log(`Database: ${resolvedDb}`);
 });
 
 module.exports = app;

@@ -310,7 +310,7 @@ ssh -i ~/.ssh/id_ed25519_digitalocean root@134.199.214.90
 
 - ✅ **Railway Deployment**: Seamless migration to Railway platform with `railway up` command
 - ✅ **Database Standardization**: Unified database location (`web-app/image_metadata.db`) for local/production parity
-- ✅ **Path Resolution Fixes**: Corrected database connection from `../../image_metadata.db` to `./image_metadata.db`
+- ✅ **Path Resolution Fixes**: Database connector now resolves `DATABASE_PATH` relative to `web-app/` (or absolute), defaulting to `web-app/image_metadata.db`
 - ✅ **TypeScript Fixes**: Resolved compilation errors by removing unused imports
 - ✅ **Development Environment**: Both frontend (3002) and backend (5005) running stably
 - ✅ **Production Verification**: 3,621 files with 200 processed images serving correctly
