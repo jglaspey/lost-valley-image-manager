@@ -356,6 +356,15 @@ ssh -i ~/.ssh/id_ed25519_digitalocean root@134.199.214.90
 - HTTPS enforced via proxy redirect
 - Authenticated downloads and on-demand thumbnails working
 
+#### ✅ Recent Changes (August 13, 2025)
+- Simplified to a single database (removed UI/server multi-DB switching)
+- Direct, authenticated downloads via `/api/download/:id` using fetch→blob; server caches originals
+- Public `/api/placeholder-image` (no auth) to prevent 401 thumbnails in UI fallbacks
+- Forced HTTPS redirect in production behind Railway proxy
+- Docs refreshed for Railway-first: `README.md`, `web-app/DEPLOYMENT.md`, `DEPLOYMENT_GUIDE.md`
+- Nixpacks build/start pinned to `web-app/`
+- Optional CI workflow added for Railway deploys (token + project ID); CLI deploy remains primary
+
 #### 🔧 **Final Deployment Steps Completed**:
 1. **Docker Container Rebuild**: ✅
    - Resolved Express 5.x → 4.x compatibility issues
@@ -380,8 +389,9 @@ ssh -i ~/.ssh/id_ed25519_digitalocean root@134.199.214.90
 - **localStorage persistence**: User-friendly session management
 - **Middleware ordering**: Critical fix for Express.js authentication flow
 - **Railway build**: Nixpacks builds client and starts server per `railway.toml` / `.nixpacks.toml`
-- **DB shipping**: `web-app/image_metadata.db` checked in to ensure table availability
+- **DB shipping**: `web-app/image_metadata.db` checked in to ensure table availability (read-only in app)
 - **Blob downloads**: Client fetches `/api/download/:id` and saves via blob; server caches originals
+- **Single DB mode**: Removed database picker and `/api/databases/*` routes for simplicity and security
 
 ---
 *Last Updated: August 11, 2025*
