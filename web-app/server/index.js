@@ -61,10 +61,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Rate limiting (with better trust proxy handling)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 10000 : 1000, // Higher limit in dev
+  max: process.env.NODE_ENV === 'development' ? 10000 : 1000,
   message: 'Too many requests from this IP, please try again later.',
-  skip: (req) => req.path === '/api/login', // Skip rate limiting for login
-  trustProxy: process.env.NODE_ENV === 'production' ? 1 : false // Match main trust proxy setting
+  // app.use('/api/', limiter) sets req.path to the path after '/api'
+  // Skip auth/health/thumbnail warming endpoints to avoid throttling UI and cache warmers
+  skip: (req) => {
+    const p = req.path || '';
+    return p === '/login' || p === '/health' || p === '/placeholder-image' || p.startsWith('/thumbnails/');
+  },
+  trustProxy: process.env.NODE_ENV === 'production' ? true : false
 });
 app.use('/api/', limiter);
 
